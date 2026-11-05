@@ -1,0 +1,67 @@
+# Manifesto de exemplo do kraken-cleanroom (schema v1).
+# Referência completa: docs/03-manifesto-cleanroom-yaml.md
+version: 1
+
+job:
+  name: todomvc-demo
+  description: Estudo do fluxo de tarefas do TodoMVC para reimplementar uma lista de tarefas.
+  goals:
+    - Quais estados uma tarefa pode ter e como transita entre eles?
+    - Quais filtros existem e como afetam a lista?
+    - Há persistência entre recarregamentos?
+
+target:
+  url: https://demo.playwright.dev/todomvc/
+  type: web-spa
+  allowedOrigins:
+    - https://demo.playwright.dev
+  docsUrls: []
+
+ownership: third-party
+authorization:
+  basis: Site público de demonstração mantido para prática de automação; uso normal sem conta.
+  tosReviewed: true
+  evidence: null
+
+methods:
+  behavioralUi: true
+  networkHar: true
+  publicDocs: true
+  staticBundles: true
+  binaryAnalysis: false
+  sourceRepo: false
+  authenticatedSession: false
+
+limits:
+  maxPages: 50
+  maxDepth: 4
+  maxDurationMin: 20
+  rateLimitRps: 1
+  maxAccounts: 0
+  forbiddenPaths:
+    - "**/logout"
+    - "**/admin/**"
+  destructiveActions: false
+  formSubmission: validation-only
+  respectRobotsTxt: true
+
+accounts:
+  strategy: none
+
+humanInTheLoop:
+  captcha: handoff
+  smsOtp: handoff
+  payments: abort
+  handoffTimeoutMin: 30
+
+cleanup:
+  deleteAccountAtEnd: true
+  purgeHarSecrets: true
+  retainDays: 90
+
+report:
+  language: pt-BR
+  viewports:
+    - [375, 812]
+    - [768, 1024]
+    - [1440, 900]
