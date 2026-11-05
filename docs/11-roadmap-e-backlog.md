@@ -34,7 +34,7 @@ flowchart LR
 - `loadConfig()` lendo env com zod (variáveis de `02` §7); `createLogger()` pino com redaction (incluindo `token=` em URLs); hierarquia `CleanroomError`.
 - **Aceite:** testes de config inválida com mensagem clara; teste comprovando redaction de `ws://x?token=abc`.
 
-### [ ] F0-04 Core: schema do manifesto + `loadManifest` + `ScopeGuard` (M) - Dep: F0-03
+### [x] F0-04 Core: schema do manifesto + `loadManifest` + `ScopeGuard` (M) - Dep: F0-03
 - Implementar schema zod completo de `03` (Fase 1 usa todos os campos; `accounts` aceito e validado, mas só `strategy: none` executável até a Fase 2).
 - Regras cruzadas de `03` §3 com mensagens em pt-BR.
 - `ScopeGuard`: `assertMethod`, `canNavigate(url)` (origins, forbiddenPaths com `picomatch`, robots), `isDestructive(label)`, `throttle()` (token bucket).
