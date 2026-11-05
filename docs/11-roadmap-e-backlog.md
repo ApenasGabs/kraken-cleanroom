@@ -41,7 +41,7 @@ flowchart LR
 - `examples/cleanroom.example.yaml` deve validar.
 - **Aceite:** ≥ 20 casos de teste (válidos e inválidos, cada regra cruzada); merge de `forbiddenPaths` padrão garantido.
 
-### [ ] F0-05 CLI esqueleto: `init`, `validate`, `doctor` (S) - Dep: F0-04
+### [x] F0-05 CLI esqueleto: `init`, `validate`, `doctor` (S) - Dep: F0-04
 - `commander`; `init <url>` gera YAML com defaults seguros e comentários; `validate` imprime issues; `doctor` checa data dir gravável, CDP (conecta e abre `about:blank`), LLM (chamada mínima), sem imprimir segredos.
 - **Aceite:** `cleanroom init https://demo.playwright.dev/todomvc | cleanroom validate -` passa; `doctor` com env ausente mostra o que falta.
 
