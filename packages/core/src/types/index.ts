@@ -29,3 +29,23 @@ export const DEFAULT_PHASE_ORDER: readonly PhaseId[] = [
   "validate",
   "report",
 ] as const;
+
+export type {
+  TargetType,
+  OwnershipType,
+  FormSubmissionMode,
+  AccountStrategy,
+  AccountIdentity,
+  ChallengeAction,
+  PaymentAction,
+  ReportSection,
+  ManifestMethod,
+  ManifestInput,
+  Manifest,
+} from "../manifest.js";
+
+export type {
+  RobotsPolicy,
+  ScopeGuardOptions,
+  ScopeGuard,
+} from "../scope-guard.js";
