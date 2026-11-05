@@ -588,6 +588,9 @@ function buildManifestError(
 }
 
 function isProbablyYamlContent(pathOrYaml: string): boolean {
+  if (pathOrYaml.trim().length === 0) {
+    return true;
+  }
   if (pathOrYaml.includes("\n") || pathOrYaml.includes("\r")) {
     return true;
   }
@@ -671,4 +674,232 @@ export async function loadManifest(
 ): Promise<Manifest> {
   const yamlContent = await resolveYamlString(pathOrYaml);
   return parseManifestYaml(yamlContent, options);
+}
+
+export type ValidateManifestResult =
+  | { ok: true; manifest: Manifest }
+  | { ok: false; issues: ManifestIssueDetail[] };
+
+export async function validateManifest(
+  pathOrYaml: string,
+  options?: LoadManifestOptions,
+): Promise<ValidateManifestResult> {
+  try {
+    const manifest = await loadManifest(pathOrYaml, options);
+    return { ok: true, manifest };
+  } catch (err) {
+    if (err instanceof ManifestError) {
+      return { ok: false, issues: [...err.issues] };
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      ok: false,
+      issues: [{ path: "manifest", message }],
+    };
+  }
+}
+
+export interface InitManifestOptions {
+  ownership?: OwnershipType | undefined;
+  jobName?: string | undefined;
+  description?: string | undefined;
+  goals?: readonly string[] | undefined;
+  targetType?: TargetType | undefined;
+  allowedOrigins?: readonly string[] | undefined;
+  docsUrls?: readonly string[] | undefined;
+  basis?: string | undefined;
+  tosReviewed?: boolean | undefined;
+  evidence?: string | null | undefined;
+}
+
+export function deriveJobName(url: string): string {
+  if (!isValidHttpOrHttpsUrl(url)) {
+    throw buildManifestError([
+      {
+        path: "target.url",
+        message: "target.url deve ser uma URL válida com protocolo https:// (ou http://localhost).",
+      },
+    ]);
+  }
+
+  const parsed = new URL(url);
+  const hostWithoutWww = parsed.hostname.replace(/^www\./i, "");
+  const pathSegments = parsed.pathname
+    .split("/")
+    .map((segment) => segment.replace(/\.(html?|php|aspx|jsp)$/i, "").trim())
+    .filter((segment) => segment.length > 0);
+
+  const combined = [hostWithoutWww, ...pathSegments]
+    .join("-")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  let slug = combined.slice(0, 40).replace(/-+$/g, "");
+  if (slug.length === 0) {
+    slug = "cleanroom-job";
+  } else if (slug.length < 3) {
+    slug = `${slug}-job`.slice(0, 40).replace(/-+$/g, "");
+  }
+
+  return slug;
+}
+
+function yamlScalar(value: string): string {
+  return JSON.stringify(value);
+}
+
+export async function initManifest(url: string, options?: InitManifestOptions): Promise<string> {
+  const trimmedUrl = url.trim();
+  if (!isValidHttpOrHttpsUrl(trimmedUrl)) {
+    throw buildManifestError([
+      {
+        path: "target.url",
+        message: "target.url deve ser uma URL válida com protocolo https:// (ou http://localhost).",
+      },
+    ]);
+  }
+
+  const ownership: OwnershipType =
+    options?.ownership ?? (isLocalhostHttpUrl(trimmedUrl) ? "own" : "third-party");
+
+  if (!OWNERSHIP_TYPES.includes(ownership)) {
+    throw buildManifestError([
+      {
+        path: "ownership",
+        message: `ownership deve ser um dos valores: ${OWNERSHIP_TYPES.join(", ")}.`,
+      },
+    ]);
+  }
+
+  const parsedUrl = new URL(trimmedUrl);
+  const normalizedUrl = parsedUrl.toString();
+  const origin = parsedUrl.origin;
+  const jobName = options?.jobName ?? deriveJobName(normalizedUrl);
+  const description =
+    options?.description ?? `Estudo comportamental em sala limpa (clean room) de ${origin}.`;
+  const goals = options?.goals ?? [
+    "Quais são os módulos funcionais e fluxos principais da aplicação?",
+    "Quais regras de negócio e validações de formulário são aplicadas?",
+  ];
+  const targetType: TargetType = options?.targetType ?? "web-unknown";
+  const allowedOrigins =
+    options?.allowedOrigins && options.allowedOrigins.length > 0
+      ? [...options.allowedOrigins]
+      : [origin];
+  const docsUrls = options?.docsUrls ? [...options.docsUrls] : [];
+
+  const defaultBasisByOwnership: Record<OwnershipType, string> = {
+    own: "Aplicação própria; análise comportamental clean room autorizada pelo proprietário.",
+    "third-party":
+      "Estudo comportamental clean room em ambiente público/autorizado; uso normal respeitando Termos de Uso.",
+    "client-authorized":
+      "Análise comportamental clean room autorizada formalmente pelo cliente contratante.",
+  };
+
+  const basis = options?.basis ?? defaultBasisByOwnership[ownership];
+  const tosReviewed = options?.tosReviewed ?? true;
+  const evidence =
+    options?.evidence !== undefined
+      ? options.evidence
+      : ownership === "client-authorized"
+        ? "Contrato/Autorização formal do cliente (atualizar referência antes da execução)"
+        : null;
+
+  const tosComment =
+    ownership === "third-party"
+      ? "  # Obrigatório para third-party: confirme que revisou os Termos de Uso (ToS) do alvo antes de iniciar."
+      : ownership === "client-authorized"
+        ? "  # Confirme que os termos e escopo autorizados pelo cliente foram revisados."
+        : "  # Alvo próprio (own): confirmação de revisão de termos.";
+
+  const evidenceComment =
+    ownership === "client-authorized"
+      ? "  # Obrigatório para client-authorized: referência ao contrato, OS ou autorização formal."
+      : "  # Referência formal de autorização (obrigatório apenas quando ownership: client-authorized).";
+
+  const lines: string[] = [
+    "# Manifesto kraken-cleanroom (schema v1).",
+    "# Documentação de referência: docs/03-manifesto-cleanroom-yaml.md",
+    "version: 1",
+    "",
+    "# Identificação e objetivos do estudo",
+    "job:",
+    `  name: ${jobName}`,
+    `  description: ${yamlScalar(description)}`,
+    "  goals:",
+    ...goals.map((goal) => `    - ${yamlScalar(goal)}`),
+    "",
+    "# Aplicação alvo e escopo de origens permitidas",
+    "target:",
+    `  url: ${yamlScalar(normalizedUrl)}`,
+    `  type: ${targetType}`,
+    "  allowedOrigins:",
+    ...allowedOrigins.map((item) => `    - ${yamlScalar(item)}`),
+    docsUrls.length === 0
+      ? "  docsUrls: []"
+      : ["  docsUrls:", ...docsUrls.map((u) => `    - ${yamlScalar(u)}`)].join("\n"),
+    "",
+    "# Relação de propriedade (own | third-party | client-authorized) e base de autorização",
+    `ownership: ${ownership}`,
+    "authorization:",
+    `  basis: ${yamlScalar(basis)}`,
+    tosComment,
+    `  tosReviewed: ${tosReviewed}`,
+    evidenceComment,
+    `  evidence: ${evidence === null ? "null" : yamlScalar(evidence)}`,
+    "",
+    "# Métodos de coleta habilitados (clean room: apenas comportamento observável)",
+    "methods:",
+    "  behavioralUi: true",
+    "  networkHar: true",
+    "  publicDocs: true",
+    "  staticBundles: true",
+    "  binaryAnalysis: false",
+    "  sourceRepo: false",
+    "  authenticatedSession: false",
+    "",
+    "# Limites operacionais e guardrails de segurança",
+    "limits:",
+    "  maxPages: 150",
+    "  maxDepth: 6",
+    "  maxDurationMin: 60",
+    "  rateLimitRps: 1",
+    "  maxAccounts: 0",
+    "  forbiddenPaths:",
+    ...DEFAULT_FORBIDDEN_PATHS.map((pattern) => `    - ${yamlScalar(pattern)}`),
+    "  destructiveActions: false",
+    "  formSubmission: validation-only",
+    "  respectRobotsTxt: true",
+    "",
+    "# Estratégia de autenticação (Fase 1 suporta apenas strategy: none)",
+    "accounts:",
+    "  strategy: none",
+    "  identity: owner",
+    "",
+    "# Intervenção humana obrigatória para desafios (resolução automática é proibida)",
+    "humanInTheLoop:",
+    "  captcha: handoff",
+    "  smsOtp: handoff",
+    "  payments: abort",
+    "  handoffTimeoutMin: 30",
+    "",
+    "# Higiene pós-execução e retenção",
+    "cleanup:",
+    "  deleteAccountAtEnd: true",
+    "  purgeHarSecrets: true",
+    "  retainDays: 90",
+    "",
+    "# Configuração do relatório de especificação funcional",
+    "report:",
+    "  language: pt-BR",
+    "  viewports:",
+    ...DEFAULT_REPORT_VIEWPORTS.map(([w, h]) => `    - [${w}, ${h}]`),
+    "",
+  ];
+
+  const yamlOutput = lines.join("\n");
+  parseManifestYaml(yamlOutput);
+  return yamlOutput;
 }
