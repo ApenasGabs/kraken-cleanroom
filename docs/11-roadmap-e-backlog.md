@@ -20,7 +20,7 @@ flowchart LR
 
 ## Fase 0: Bootstrap
 
-### [ ] F0-01 Monorepo pnpm + TypeScript + Biome + Vitest (M)
+### [x] F0-01 Monorepo pnpm + TypeScript + Biome + Vitest (M)
 - Criar `package.json` raiz (`private`, `packageManager: pnpm@9`, `engines.node >=22`), `pnpm-workspace.yaml` (`packages/*`, `workers/*`, `fixtures/*`), `tsconfig.base.json` (ver `09` §1), `biome.json`, `vitest.workspace.ts`.
 - Criar pacotes vazios com `package.json`, `tsconfig.json`, `src/index.ts`, `tsup.config.ts`: `core`, `explorer`, `analyzers`, `synthesizer`, `validator`, `mcp-server`, `cli`. Nome npm `@cleanroom/<pkg>`.
 - Scripts raiz: `build`, `typecheck`, `lint`, `format`, `test`, `cleanroom` (executa CLI compilada).

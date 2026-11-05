@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/explorer" },
+    { "path": "./packages/analyzers" },
+    { "path": "./packages/synthesizer" },
+    { "path": "./packages/validator" },
+    { "path": "./packages/mcp-server" },
+    { "path": "./packages/cli" }
+  ]
+}

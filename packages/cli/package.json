@@ -1,0 +1,30 @@
+{
+  "name": "@cleanroom/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "cleanroom": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cleanroom/analyzers": "workspace:*",
+    "@cleanroom/core": "workspace:*",
+    "@cleanroom/explorer": "workspace:*",
+    "@cleanroom/mcp-server": "workspace:*",
+    "@cleanroom/synthesizer": "workspace:*",
+    "@cleanroom/validator": "workspace:*"
+  }
+}
