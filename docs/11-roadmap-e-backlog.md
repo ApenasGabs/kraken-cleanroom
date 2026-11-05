@@ -26,7 +26,7 @@ flowchart LR
 - Scripts raiz: `build`, `typecheck`, `lint`, `format`, `test`, `cleanroom` (executa CLI compilada).
 - **Aceite:** `pnpm install && pnpm lint && pnpm typecheck && pnpm test && pnpm build` passam num clone limpo; teste trivial em `core`.
 
-### [ ] F0-02 CI GitHub Actions + gitleaks + PR template (S) - Dep: F0-01
+### [x] F0-02 CI GitHub Actions + gitleaks + PR template (S) - Dep: F0-01
 - `.github/workflows/ci.yml` conforme `09` §5. Revisar `.github/pull_request_template.md` (já existe).
 - **Aceite:** CI verde no PR; gitleaks falha se um token fake for adicionado (verificar localmente e remover).
 

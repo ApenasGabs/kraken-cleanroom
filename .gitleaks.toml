@@ -1,0 +1,25 @@
+title = "kraken-cleanroom gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "paperclip-api-token"
+description = "Paperclip API Bearer Token (pcp_*)"
+regex = '''\bpcp_[a-fA-F0-9]{32,64}\b'''
+keywords = ["pcp_"]
+
+[[rules]]
+id = "browserless-ws-token"
+description = "Browserless CDP WebSocket URL with embedded token"
+regex = '''wss?://[^\s"'`]+[?&]token=([a-zA-Z0-9_-]{16,})'''
+secretGroup = 1
+keywords = ["token="]
+  [rules.allowlists]
+  paths = [
+    '''\.test\.ts$''',
+  ]
+  regexTarget = "secret"
+  regexes = [
+    '''^(placeholder|seu_token_aqui|fake_token|example_token|REDACTED)$''',
+  ]
