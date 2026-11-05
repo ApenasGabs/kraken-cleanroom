@@ -15,5 +15,9 @@
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "pino": "^9.6.0",
+    "zod": "^3.24.2"
   }
 }

@@ -30,7 +30,7 @@ flowchart LR
 - `.github/workflows/ci.yml` conforme `09` §5. Revisar `.github/pull_request_template.md` (já existe).
 - **Aceite:** CI verde no PR; gitleaks falha se um token fake for adicionado (verificar localmente e remover).
 
-### [ ] F0-03 Core: config, logger, erros (S) - Dep: F0-01
+### [x] F0-03 Core: config, logger, erros (S) - Dep: F0-01
 - `loadConfig()` lendo env com zod (variáveis de `02` §7); `createLogger()` pino com redaction (incluindo `token=` em URLs); hierarquia `CleanroomError`.
 - **Aceite:** testes de config inválida com mensagem clara; teste comprovando redaction de `ws://x?token=abc`.
 
