@@ -45,7 +45,7 @@ flowchart LR
 - `commander`; `init <url>` gera YAML com defaults seguros e comentários; `validate` imprime issues; `doctor` checa data dir gravável, CDP (conecta e abre `about:blank`), LLM (chamada mínima), sem imprimir segredos.
 - **Aceite:** `cleanroom init https://demo.playwright.dev/todomvc | cleanroom validate -` passa; `doctor` com env ausente mostra o que falta.
 
-### [ ] F0-06 `fixtures/demo-app` (M) - Dep: F0-01
+### [x] F0-06 `fixtures/demo-app` (M) - Dep: F0-01
 - App de referência própria (Hono + HTML/JS simples, sem framework pesado): home, login fake, lista de "projetos" paginada (API JSON `/api/projects?page=`), detalhe com `status` (`draft|active|archived`) e botões dependentes do status, formulário "Novo projeto" com validações (nome obrigatório 3-60, orçamento ≥ 0, data futura), página `/pricing` (Free: 3 projetos; Pro: ilimitado), `/help` com 3 artigos, `robots.txt`, `sitemap.xml`, rota `/admin` (deve ser evitada).
 - `fixtures/demo-app/EXPECTED.md`: lista das regras plantadas (ground truth para testes do pipeline).
 - Script `pnpm --filter demo-app start` em porta configurável.

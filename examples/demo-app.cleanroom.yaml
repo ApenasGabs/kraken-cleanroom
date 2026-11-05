@@ -1,0 +1,71 @@
+# Manifesto cleanroom.yaml apontando para a fixtures/demo-app local (schema v1).
+# Usado em testes de integração e E2E (ex.: F1-14).
+version: 1
+
+job:
+  name: demo-app-local
+  description: Estudo completo da fixture de referência demo-app para validação das regras de negócio plantadas em EXPECTED.md.
+  goals:
+    - Quais validações existem no formulário de criação de projetos?
+    - Qual é o limite de projetos do plano Free em comparação ao plano Pro?
+    - Quais estados um projeto possui e quais ações estão disponíveis em cada estado?
+
+target:
+  url: http://localhost:4173/
+  type: web-ssr
+  allowedOrigins:
+    - http://localhost:4173
+  docsUrls:
+    - http://localhost:4173/help
+    - http://localhost:4173/pricing
+
+ownership: own
+authorization:
+  basis: Aplicação de demonstração própria (fixtures/demo-app) criada especificamente para testes automatizados do kraken-cleanroom.
+  tosReviewed: true
+  evidence: null
+
+methods:
+  behavioralUi: true
+  networkHar: true
+  publicDocs: true
+  staticBundles: true
+  binaryAnalysis: false
+  sourceRepo: false
+  authenticatedSession: false
+
+limits:
+  maxPages: 50
+  maxDepth: 5
+  maxDurationMin: 15
+  rateLimitRps: 5
+  maxAccounts: 0
+  forbiddenPaths:
+    - "**/logout"
+    - "**/delete*"
+    - "**/admin/**"
+    - "**/checkout/**"
+  destructiveActions: false
+  formSubmission: validation-only
+  respectRobotsTxt: true
+
+accounts:
+  strategy: none
+
+humanInTheLoop:
+  captcha: handoff
+  smsOtp: handoff
+  payments: abort
+  handoffTimeoutMin: 15
+
+cleanup:
+  deleteAccountAtEnd: true
+  purgeHarSecrets: true
+  retainDays: 30
+
+report:
+  language: pt-BR
+  viewports:
+    - [375, 812]
+    - [768, 1024]
+    - [1440, 900]

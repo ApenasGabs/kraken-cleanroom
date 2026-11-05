@@ -24,6 +24,15 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@22.20.5)
 
+  fixtures/demo-app:
+    dependencies:
+      '@hono/node-server':
+        specifier: ^1.14.2
+        version: 1.19.18(hono@4.13.16)
+      hono:
+        specifier: ^4.7.10
+        version: 4.13.16
+
   packages/analyzers:
     dependencies:
       '@cleanroom/core':
@@ -459,6 +468,12 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@hono/node-server@1.19.18':
+    resolution: {integrity: sha512-609kppIP9GITS+EwPyB6Kiq8z2yXONaYD1VHpo7MMP9celRJYbkFr9KakJncHwK0EK/XYtlogqmrLchDv5HX5w==}
+    engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
 
@@ -737,6 +752,10 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  hono@4.13.16:
+    resolution: {integrity: sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A==}
+    engines: {node: '>=16.9.0'}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -1198,6 +1217,10 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
+  '@hono/node-server@1.19.18(hono@4.13.16)':
+    dependencies:
+      hono: 4.13.16
+
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
@@ -1462,6 +1485,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  hono@4.13.16: {}
 
   joycon@3.1.1: {}
 
