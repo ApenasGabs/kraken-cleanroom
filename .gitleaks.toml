@@ -3,6 +3,16 @@ title = "kraken-cleanroom gitleaks configuration"
 [extend]
 useDefault = true
 
+[allowlist]
+description = "Synthetic low-entropy placeholders in automated tests"
+paths = [
+  '''\.test\.ts$''',
+]
+regexTarget = "secret"
+regexes = [
+  '''^(placeholder|seu_token_aqui|fake_token|example_token|test-key-placeholder|api-token-placeholder|creds-key-placeholder|hmac-placeholder|test-pass|REDACTED)$''',
+]
+
 [[rules]]
 id = "paperclip-api-token"
 description = "Paperclip API Bearer Token (pcp_*)"

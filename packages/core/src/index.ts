@@ -69,6 +69,9 @@ export {
   parseManifestObject,
   parseManifestYaml,
   loadManifest,
+  validateManifest,
+  deriveJobName,
+  initManifest,
   type TargetType,
   type OwnershipType,
   type FormSubmissionMode,
@@ -81,6 +84,8 @@ export {
   type ManifestInput,
   type Manifest,
   type LoadManifestOptions,
+  type ValidateManifestResult,
+  type InitManifestOptions,
 } from "./manifest.js";
 
 export {
