@@ -1,9 +1,62 @@
 export {
   DEFAULT_PHASE_ORDER,
+  CONFIDENCE_LEVELS,
+  EVIDENCE_KINDS,
+  FINDING_CATEGORIES,
+  RULE_VALIDATION_STATUSES,
+  DOMAIN_RELATION_KINDS,
   type Confidence,
   type JobState,
   type PhaseId,
+  type EvidenceKind,
+  type Evidence,
+  type FindingCategory,
+  type Finding,
+  type RuleValidationStatus,
+  type RuleValidation,
+  type BusinessRule,
+  type DomainRelationKind,
+  type DomainAttribute,
+  type DomainRelation,
+  type DomainEntity,
+  type Page,
 } from "./types/index.js";
+
+export {
+  createUlid,
+  createPrefixedId,
+  createEvidenceId,
+  createFindingId,
+  createJobId,
+  createHandoffId,
+} from "./ids.js";
+
+export {
+  resolveDefaultMigrationsDir,
+  loadMigrationFiles,
+  getDatabaseUserVersion,
+  runMigrations,
+  resolveDatabasePath,
+  openDatabase,
+  type SqliteDatabase,
+  type MigrationFile,
+  type RunMigrationsOptions,
+  type MigrationResult,
+  type OpenDatabaseOptions,
+} from "./db.js";
+
+export {
+  canonicalJson,
+  computeSha256,
+  normalizeEvidenceSummary,
+  EvidenceStore,
+  createEvidenceStore,
+  type EvidenceStoreOptions,
+  type PutEvidenceInput,
+  type PutEvidenceResult,
+  type ListEvidenceFilter,
+  type ListEvidenceOptions,
+} from "./evidence-store.js";
 
 export {
   CLEANROOM_ERROR_CODES,
