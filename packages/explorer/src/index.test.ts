@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   BrowserUnavailableError,
   type EvidenceStore,
+  FakeLlmClient,
   type JobRecord,
   JobRunner,
   JobStore,
@@ -168,6 +169,7 @@ describe("@cleanroom/explorer — Fase 1 intake (fetch, sem browser)", () => {
       manifest,
       guard,
       evidence: evidenceStore,
+      llm: new FakeLlmClient(),
       log: createLogger({ level: "silent" }),
       signal: new AbortController().signal,
       checkpoint: opts?.checkpoint,
