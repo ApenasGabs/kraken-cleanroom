@@ -55,7 +55,7 @@ flowchart LR
 
 ## Fase 1: MVP web pública (sem login)
 
-### [ ] F1-01 Core: SQLite, migrações, `EvidenceStore` (M) - Dep: F0-03
+### [x] F1-01 Core: SQLite, migrações, `EvidenceStore` (M) - Dep: F0-03
 - Schema de `05` §3; migrador por `PRAGMA user_version`; `EvidenceStore.put()` com dedup por `(job, kind, sha256)` e blobs em disco por hash; `list/get` com paginação por cursor.
 - **Aceite:** testes de dedup, retomada, paginação; DB em diretório temporário nos testes.
 
