@@ -88,7 +88,7 @@ flowchart LR
 - Templating de path, merge de shapes, enums, paginação, auth, `x-cleanroom-evidence`.
 - **Aceite:** a partir de HAR fixture da demo-app gera OpenAPI 3.1 válido (validar com `@apidevtools/swagger-parser`), com `GET /api/projects` paginado e enum `status`.
 
-### [ ] F1-09 Analyzer: `docsHarvester` + pricing (M) - Dep: F1-02
+### [x] F1-09 Analyzer: `docsHarvester` + pricing (M) - Dep: F1-02
 - Readability + turndown; segmentação; `pricing_plan` estruturado.
 - **Aceite:** demo-app `/help` gera 3 `doc_section`; `/pricing` gera 2 planos com limite de projetos.
 
