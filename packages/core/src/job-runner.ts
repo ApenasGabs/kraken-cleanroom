@@ -3,6 +3,7 @@ import { JobBlockedError, JobConflictError, OutOfScopeError } from "./errors.js"
 import type { EvidenceStore } from "./evidence-store.js";
 import { createHandoffId } from "./ids.js";
 import type { JobStore } from "./job-store.js";
+import { FakeLlmClient, type LlmClient, bindLlmClientToJob } from "./llm-client.js";
 import { type Logger, createLogger } from "./logger.js";
 import type { Manifest } from "./manifest.js";
 import { type ScopeGuard, createScopeGuard } from "./scope-guard.js";
@@ -33,6 +34,8 @@ export interface JobRunnerOptions {
   store: JobStore;
   evidence: EvidenceStore;
   phases: readonly Phase[];
+  /** Cliente LLM injetado nas fases; contabiliza tokens automaticamente no job. */
+  llm?: LlmClient | undefined;
   /** Logger base; se omitido, cada job loga em `jobs/<jobId>/logs/job.ndjson`. */
   logger?: Logger | undefined;
   /** Sobrescreve o timeout global (ms). Default: `limits.maxDurationMin` do manifesto. */
@@ -98,6 +101,7 @@ export class JobRunner {
   private readonly store: JobStore;
   private readonly evidence: EvidenceStore;
   private readonly registry: Map<PhaseId, Phase>;
+  private readonly llm: LlmClient;
   private readonly logger: Logger | undefined;
   private readonly timeoutMs: number | undefined;
   private readonly guardFactory: (manifest: Manifest) => ScopeGuard;
@@ -106,6 +110,7 @@ export class JobRunner {
     this.store = options.store;
     this.evidence = options.evidence;
     this.registry = new Map(options.phases.map((p) => [p.id, p]));
+    this.llm = options.llm ?? new FakeLlmClient();
     this.logger = options.logger;
     this.timeoutMs = options.timeoutMs;
     this.guardFactory = options.guardFactory ?? ((manifest) => createScopeGuard(manifest));
@@ -203,6 +208,9 @@ export class JobRunner {
         manifest,
         guard,
         evidence: this.evidence,
+        llm: bindLlmClientToJob(this.llm, this.store, jobId, () => {
+          ctx.job = this.store.getJobOrThrow(jobId);
+        }),
         log: phaseLog,
         signal,
         checkpoint: record?.checkpoint,
