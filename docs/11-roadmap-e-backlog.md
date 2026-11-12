@@ -64,7 +64,7 @@ flowchart LR
 - `JobService` (de `07` §1) com `start/status/list/cancel/resume`.
 - **Aceite:** testes com fases fake cobrindo ok, awaiting_human, blocked, failed, cancel, resume.
 
-### [ ] F1-03 Explorer: sessão CDP + intake (M) - Dep: F1-02
+### [x] F1-03 Explorer: sessão CDP + intake (M) - Dep: F1-02
 - `BrowserSession` (connectOverCDP, contexto por job, cleanup em finally). Fase `intake` de `04`: fetch, robots, sitemap, detecção SPA/SSR e tecnologias.
 - **Aceite:** testes de intake contra demo-app usando fetch (sem browser); teste E2E de conexão CDP com `skipIf`.
 
