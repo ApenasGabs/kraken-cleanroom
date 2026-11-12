@@ -20,7 +20,51 @@ export {
   type DomainRelation,
   type DomainEntity,
   type Page,
+  JOB_STATES,
+  TERMINAL_JOB_STATES,
+  PHASE_STATUSES,
+  HANDOFF_KINDS,
+  type PhaseStatus,
+  type HandoffKind,
+  type HandoffRequest,
+  type HandoffStatus,
+  type HandoffRecord,
+  type JobRecord,
+  type PhaseRecord,
+  type JobEvent,
+  type StoredJobEvent,
+  type PhaseResult,
+  type PhaseContext,
+  type Phase,
+  type JobStatus,
+  type JobSummary,
 } from "./types/index.js";
+
+export {
+  JOB_STATE_TRANSITIONS,
+  isTerminalJobState,
+  canTransitionJob,
+  assertJobTransition,
+} from "./job-state.js";
+
+export { JobStore, type JobStoreOptions, type CreateJobInput } from "./job-store.js";
+
+export {
+  JobRunner,
+  JobAbortReason,
+  type JobAbortKind,
+  type JobRunnerOptions,
+  type RunJobOptions,
+} from "./job-runner.js";
+
+export {
+  CleanroomJobService,
+  createJobService,
+  type JobService,
+  type JobServiceOptions,
+  type StartJobOptions,
+  type ValidateManifestServiceResult,
+} from "./job-service.js";
 
 export {
   createUlid,
@@ -29,6 +73,7 @@ export {
   createFindingId,
   createJobId,
   createHandoffId,
+  createCleanroomJobId,
 } from "./ids.js";
 
 export {

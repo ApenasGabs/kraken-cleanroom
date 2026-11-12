@@ -59,7 +59,7 @@ flowchart LR
 - Schema de `05` §3; migrador por `PRAGMA user_version`; `EvidenceStore.put()` com dedup por `(job, kind, sha256)` e blobs em disco por hash; `list/get` com paginação por cursor.
 - **Aceite:** testes de dedup, retomada, paginação; DB em diretório temporário nos testes.
 
-### [ ] F1-02 Core: `JobRunner` + máquina de estados + checkpoints (L) - Dep: F1-01, F0-04
+### [x] F1-02 Core: `JobRunner` + máquina de estados + checkpoints (L) - Dep: F1-01, F0-04
 - Estados e transições de `02` §4; execução sequencial das fases habilitadas; persistência de checkpoint; retomada após crash (simular matando o runner no meio da fase em teste); timeout global via `AbortSignal`; eventos em `events`.
 - `JobService` (de `07` §1) com `start/status/list/cancel/resume`.
 - **Aceite:** testes com fases fake cobrindo ok, awaiting_human, blocked, failed, cancel, resume.

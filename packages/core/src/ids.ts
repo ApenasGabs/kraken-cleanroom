@@ -88,3 +88,32 @@ export function createJobId(nowMs?: number | undefined): string {
 export function createHandoffId(nowMs?: number | undefined): string {
   return createPrefixedId("ho", nowMs);
 }
+
+const JOB_ID_RAND_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+function sanitizeJobSlug(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40)
+    .replace(/-$/g, "");
+  return slug.length > 0 ? slug : "job";
+}
+
+/**
+ * jobId do glossário (docs/README.md): `cr-YYYYMMDD-<job.name>-<rand4>`.
+ * Data em UTC; `rand4` são 4 caracteres `[a-z0-9]`.
+ */
+export function createCleanroomJobId(jobName: string, now: Date = new Date()): string {
+  const yyyy = String(now.getUTCFullYear()).padStart(4, "0");
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  const bytes = randomBytes(4);
+  let rand = "";
+  for (let i = 0; i < 4; i++) {
+    rand += JOB_ID_RAND_ALPHABET[(bytes[i] ?? 0) % JOB_ID_RAND_ALPHABET.length] ?? "0";
+  }
+  return `cr-${yyyy}${mm}${dd}-${sanitizeJobSlug(jobName)}-${rand}`;
+}
