@@ -237,6 +237,34 @@ export class JobStore {
     this.db.prepare("UPDATE jobs SET updated_at = ? WHERE id = ?").run(this.timestamp(), jobId);
   }
 
+  /**
+   * Acumula tokens consumidos pelo LLM no registro do job (`jobs.llm_tokens_in` / `jobs.llm_tokens_out`)
+   * e atualiza o snapshot `job.json` (docs/02 §8, docs/05 §3).
+   */
+  addLlmUsage(jobId: string, usage: { tokensIn: number; tokensOut: number }): JobRecord {
+    this.getJobOrThrow(jobId);
+    const tokensIn =
+      typeof usage.tokensIn === "number" && Number.isFinite(usage.tokensIn)
+        ? Math.max(0, Math.trunc(usage.tokensIn))
+        : 0;
+    const tokensOut =
+      typeof usage.tokensOut === "number" && Number.isFinite(usage.tokensOut)
+        ? Math.max(0, Math.trunc(usage.tokensOut))
+        : 0;
+    const ts = this.timestamp();
+    this.db
+      .prepare(
+        `UPDATE jobs
+         SET llm_tokens_in = COALESCE(llm_tokens_in, 0) + ?,
+             llm_tokens_out = COALESCE(llm_tokens_out, 0) + ?,
+             updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(tokensIn, tokensOut, ts, jobId);
+    this.writeSnapshot(jobId);
+    return this.getJobOrThrow(jobId);
+  }
+
   // ---------------------------------------------------------------- phases
 
   listPhases(jobId: string): PhaseRecord[] {

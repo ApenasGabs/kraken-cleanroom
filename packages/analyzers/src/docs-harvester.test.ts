@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type EvidenceStore,
+  FakeLlmClient,
   type JobRecord,
   type Manifest,
   MethodNotAllowedError,
@@ -150,6 +151,7 @@ describe("docsHarvester & pricing (@cleanroom/analyzers)", () => {
       manifest,
       guard,
       evidence: evidenceStore,
+      llm: new FakeLlmClient(),
       log: createLogger({ level: "silent" }),
       signal: new AbortController().signal,
       checkpoint: opts?.checkpoint,

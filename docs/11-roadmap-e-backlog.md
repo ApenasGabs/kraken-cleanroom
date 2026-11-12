@@ -96,7 +96,7 @@ flowchart LR
 - Rotas, strings, flags, endpoints literais; sem armazenar bundle bruto.
 - **Aceite:** extrai rotas e mensagens de erro da demo-app; teste garante que nenhum blob > 4 KB de JS é persistido.
 
-### [ ] F1-11 Core: `LlmClient` + provedores + `FakeLlmClient` (M) - Dep: F0-03
+### [x] F1-11 Core: `LlmClient` + provedores + `FakeLlmClient` (M) - Dep: F0-03
 - Interface `generateObject<T>(schema: ZodType<T>, messages, opts)`, retry em saída inválida, contagem de tokens, provedores `openai-compatible` e `gemini` no MVP (outros depois); fake determinístico.
 - **Aceite:** testes com fake; teste de retry; tokens contabilizados no job.
 

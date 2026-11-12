@@ -1,4 +1,16 @@
 import type { EvidenceStore } from "../evidence-store.js";
+import type {
+  AnyZodSchema,
+  LlmClient,
+  LlmGenerateResult,
+  LlmMessage,
+  LlmOptions,
+  LlmRole,
+  LlmTokenSink,
+  LlmUsage,
+  LlmUsageCallback,
+  LlmUsageEvent,
+} from "../llm-client.js";
 import type { Logger } from "../logger.js";
 import type { Manifest } from "../manifest.js";
 import type { ScopeGuard } from "../scope-guard.js";
@@ -254,6 +266,7 @@ export interface PhaseContext {
   manifest: Manifest;
   guard: ScopeGuard;
   evidence: EvidenceStore;
+  llm: LlmClient;
   log: Logger;
   /** Timeout global / cancelamento. Fases devem abortar limpo quando sinalizado. */
   signal: AbortSignal;
@@ -262,7 +275,7 @@ export interface PhaseContext {
   /** Persiste checkpoint em `phases.checkpoint_json` (chamar a cada N itens). */
   saveCheckpoint(checkpoint: unknown): void;
   emit(event: JobEvent): void;
-  // `llm` (F1-11) e `browser` (F1-03) serão adicionados quando os contratos existirem.
+  // `browser` (F1-03) será adicionado quando o contrato existir.
 }
 
 export interface Phase {
@@ -313,3 +326,16 @@ export type {
   ScopeGuardOptions,
   ScopeGuard,
 } from "../scope-guard.js";
+
+export type {
+  AnyZodSchema,
+  LlmClient,
+  LlmGenerateResult,
+  LlmMessage,
+  LlmOptions,
+  LlmRole,
+  LlmTokenSink,
+  LlmUsage,
+  LlmUsageCallback,
+  LlmUsageEvent,
+};

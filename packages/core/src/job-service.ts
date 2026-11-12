@@ -9,6 +9,7 @@ import { createCleanroomJobId } from "./ids.js";
 import { JobAbortReason, JobRunner } from "./job-runner.js";
 import { isTerminalJobState } from "./job-state.js";
 import { JobStore } from "./job-store.js";
+import type { LlmClient } from "./llm-client.js";
 import type { Logger } from "./logger.js";
 import {
   type InitManifestOptions,
@@ -65,6 +66,7 @@ export interface JobServiceOptions {
   db: SqliteDatabase;
   dataDir: string;
   phases: readonly Phase[];
+  llm?: LlmClient | undefined;
   logger?: Logger | undefined;
   /** Sobrescreve o timeout global do runner (ms); útil em testes. */
   timeoutMs?: number | undefined;
@@ -120,6 +122,7 @@ export class CleanroomJobService implements JobService {
       store: this.store,
       evidence: this.evidence,
       phases: options.phases,
+      llm: options.llm,
       logger: options.logger,
       timeoutMs: options.timeoutMs,
       guardFactory: options.guardFactory,
