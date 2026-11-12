@@ -1,3 +1,8 @@
+import type { EvidenceStore } from "../evidence-store.js";
+import type { Logger } from "../logger.js";
+import type { Manifest } from "../manifest.js";
+import type { ScopeGuard } from "../scope-guard.js";
+
 export type PhaseId =
   | "intake"
   | "explore"
@@ -142,6 +147,151 @@ export interface DomainEntity {
 export interface Page<T> {
   items: T[];
   nextCursor?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Job / Phase contracts (docs/02 §4, docs/04, docs/07 §1)
+// ---------------------------------------------------------------------------
+
+export const JOB_STATES: readonly JobState[] = [
+  "created",
+  "validating_manifest",
+  "rejected",
+  "running",
+  "awaiting_human",
+  "blocked",
+  "failed",
+  "completed",
+  "cancelled",
+] as const;
+
+export const TERMINAL_JOB_STATES: readonly JobState[] = [
+  "rejected",
+  "blocked",
+  "failed",
+  "completed",
+  "cancelled",
+] as const;
+
+export const PHASE_STATUSES = ["pending", "running", "done", "skipped", "failed"] as const;
+
+export type PhaseStatus = (typeof PHASE_STATUSES)[number];
+
+export const HANDOFF_KINDS = [
+  "captcha",
+  "sms_otp",
+  "payment_approval",
+  "manual_login",
+  "other",
+] as const;
+
+export type HandoffKind = (typeof HANDOFF_KINDS)[number];
+
+/** Pedido de intervenção humana devolvido por uma fase (docs/06). */
+export interface HandoffRequest {
+  kind: HandoffKind;
+  message: string;
+  liveUrl?: string;
+  timeoutMin: number;
+}
+
+export type HandoffStatus = "pending" | "resolved" | "cancelled";
+
+export interface HandoffRecord {
+  id: string;
+  jobId: string;
+  kind: HandoffKind;
+  status: HandoffStatus;
+  message: string;
+  liveUrl?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+/** Espelho da linha `jobs` do SQLite. */
+export interface JobRecord {
+  id: string;
+  name: string;
+  state: JobState;
+  manifest: Manifest;
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
+  llmTokensIn: number;
+  llmTokensOut: number;
+}
+
+export interface PhaseRecord {
+  jobId: string;
+  phase: PhaseId;
+  status: PhaseStatus;
+  checkpoint?: unknown;
+  startedAt?: string;
+  finishedAt?: string;
+  stats?: Record<string, number>;
+}
+
+/** Evento de progresso emitido pelo runner ou pelas fases. Persistido em `events`. */
+export interface JobEvent {
+  type: string;
+  phase?: PhaseId;
+  data?: Record<string, unknown>;
+}
+
+export interface StoredJobEvent extends JobEvent {
+  id: number;
+  jobId: string;
+  ts: string;
+}
+
+export type PhaseResult =
+  | { status: "ok"; stats: Record<string, number> }
+  | { status: "awaiting_human"; handoff: HandoffRequest }
+  | { status: "blocked"; reason: string };
+
+export interface PhaseContext {
+  job: JobRecord;
+  manifest: Manifest;
+  guard: ScopeGuard;
+  evidence: EvidenceStore;
+  log: Logger;
+  /** Timeout global / cancelamento. Fases devem abortar limpo quando sinalizado. */
+  signal: AbortSignal;
+  /** Último checkpoint salvo para esta fase (undefined na primeira execução). */
+  checkpoint: unknown;
+  /** Persiste checkpoint em `phases.checkpoint_json` (chamar a cada N itens). */
+  saveCheckpoint(checkpoint: unknown): void;
+  emit(event: JobEvent): void;
+  // `llm` (F1-11) e `browser` (F1-03) serão adicionados quando os contratos existirem.
+}
+
+export interface Phase {
+  id: PhaseId;
+  /** Permite à fase se desligar conforme o manifesto (ex.: `methods.publicDocs: false`). */
+  isEnabled?(manifest: Manifest): boolean;
+  run(ctx: PhaseContext): Promise<PhaseResult>;
+}
+
+export interface JobStatus {
+  jobId: string;
+  state: JobState;
+  currentPhase?: PhaseId;
+  phases: { id: PhaseId; status: PhaseStatus; stats?: Record<string, number> }[];
+  counters: { pages: number; evidence: number; findings: number; rules: number };
+  pendingHandoff?: { id: string; kind: string; message: string; liveUrl?: string };
+  llm: { tokensIn: number; tokensOut: number };
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
+export interface JobSummary {
+  jobId: string;
+  name: string;
+  state: JobState;
+  createdAt: string;
+  updatedAt: string;
+  error?: string;
 }
 
 export type {
