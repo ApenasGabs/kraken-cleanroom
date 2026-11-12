@@ -68,7 +68,7 @@ flowchart LR
 - `BrowserSession` (connectOverCDP, contexto por job, cleanup em finally). Fase `intake` de `04`: fetch, robots, sitemap, detecção SPA/SSR e tecnologias.
 - **Aceite:** testes de intake contra demo-app usando fetch (sem browser); teste E2E de conexão CDP com `skipIf`.
 
-### [ ] F1-04 Explorer: crawler, fingerprint de estado e state graph (L) - Dep: F1-03
+### [x] F1-04 Explorer: crawler, fingerprint de estado e state graph (L) - Dep: F1-03
 - Algoritmo BFS de `04` Fase 2; fingerprint; extração e classificação de ações; respeito a `maxPages/maxDepth/forbiddenPaths/destructive`; `graph/state-graph.json`.
 - **Aceite (E2E demo-app):** descobre home, lista, detalhe, novo projeto, pricing, help; **nunca** visita `/admin` nem clica em botão "Excluir"; grafo serializado válido.
 
