@@ -44,6 +44,9 @@ export {
   DEFAULT_NETWORK_IDLE_TIMEOUT_MS,
   DEFAULT_STABILIZATION_MS,
   DEFAULT_NAVIGATION_TIMEOUT_MS,
+  decodeHtmlEntitiesLight,
+  parseAttributes,
+  parseHtmlTree,
   isTrackingQueryParam,
   normalizeUrlForFingerprint,
   deriveStateId,
@@ -60,6 +63,7 @@ export {
   runExplorePhase,
   createExplorePhase,
   explorePhase,
+  type HtmlElementNode,
   type ActionKind,
   type ActionPriorityBucket,
   type InteractiveTreeNode,
@@ -76,3 +80,19 @@ export {
   type RawActionCandidateInput,
   type PaginationInfo,
 } from "./crawler.js";
+
+export {
+  extractFormSchemasFromHtml,
+  generateFormProbes,
+  getBaselineValidValue,
+  buildProbePayload,
+  isDestructiveForm,
+  extractErrorMessageFromHtml,
+  executeFormProbe,
+  recordFormSchemaEvidence,
+  recordFormProbeEvidence,
+  probeForm,
+  type ExecuteProbeOptions,
+  type ProbeFormOptions,
+  type FormProbeRunResult,
+} from "./form-probing.js";
