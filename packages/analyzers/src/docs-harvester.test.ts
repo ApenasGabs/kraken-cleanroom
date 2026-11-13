@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type Evidence,
   type EvidenceStore,
   FakeLlmClient,
   type JobRecord,
@@ -190,12 +191,12 @@ describe("docsHarvester & pricing (@cleanroom/analyzers)", () => {
     expect(storedPlans).toHaveLength(2);
 
     // Verifica os 3 artigos de /help
-    expect(storedDocs.map((d) => (d.data as { heading?: string }).heading)).toEqual([
+    expect(storedDocs.map((d: Evidence) => d.data.heading)).toEqual([
       "1. Como criar projetos e regras de validação",
       "2. Ciclo de vida e máquina de estados do projeto",
       "3. Limites de planos Free vs Pro e rotas restritas",
     ]);
-    expect(storedDocs.map((d) => (d.data as { sectionId?: string }).sectionId)).toEqual([
+    expect(storedDocs.map((d: Evidence) => d.data.sectionId)).toEqual([
       "artigo-criacao-validacoes",
       "artigo-ciclo-vida-status",
       "artigo-planos-limites-seguranca",
@@ -213,8 +214,8 @@ describe("docsHarvester & pricing (@cleanroom/analyzers)", () => {
     }
 
     // Verifica os 2 planos de /pricing (Free: 3 projetos; Pro: ilimitado)
-    const freePlan = storedPlans.find((p) => (p.data as { planId?: string }).planId === "free");
-    const proPlan = storedPlans.find((p) => (p.data as { planId?: string }).planId === "pro");
+    const freePlan = storedPlans.find((p: Evidence) => p.data.planId === "free");
+    const proPlan = storedPlans.find((p: Evidence) => p.data.planId === "pro");
 
     expect(freePlan).toBeDefined();
     expect(freePlan?.url).toBe(`${DEMO_ORIGIN}/pricing`);

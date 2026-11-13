@@ -76,7 +76,7 @@ flowchart LR
 - 375/768/1440 por estado novo; DOM reduzido; a11y snapshot; evidências correspondentes.
 - **Aceite:** para demo-app, 3 screenshots por estado, dedup por hash; DOM sem `<script>`.
 
-### [ ] F1-06 Explorer: form schema + probing `validation-only` (M) - Dep: F1-04
+### [x] F1-06 Explorer: form schema + probing `validation-only` (M) - Dep: F1-04
 - Extração de schema de formulários; bateria de valores inválidos; captura de mensagens e 4xx; nunca concluir submissão válida.
 - **Aceite:** detecta as 3 validações do formulário "Novo projeto" da demo-app; nenhum projeto criado na API da demo (verificar contador).
 

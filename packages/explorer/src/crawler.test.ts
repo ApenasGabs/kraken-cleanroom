@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type Evidence,
   type EvidenceStore,
   FakeLlmClient,
   type JobEvent,
@@ -736,11 +737,11 @@ describe("@cleanroom/explorer — Fase 2 explore (BFS crawler e state-graph cont
       expect(node.domSnapshotEvidenceId).toBeDefined();
       expect(node.a11ySnapshotEvidenceId).toBeDefined();
 
-      const nodeShots = allScreenshots.filter((s) => s.stateId === node.id);
+      const nodeShots = allScreenshots.filter((s: Evidence) => s.stateId === node.id);
       expect(nodeShots).toHaveLength(3);
 
       const viewportsFound = nodeShots
-        .map((s) => `${String(s.data.width)}x${String(s.data.height)}`)
+        .map((s: Evidence) => `${String(s.data.width)}x${String(s.data.height)}`)
         .sort();
       expect(viewportsFound).toEqual(["1440x900", "375x812", "768x1024"]);
 
@@ -754,7 +755,7 @@ describe("@cleanroom/explorer — Fase 2 explore (BFS crawler e state-graph cont
       }
 
       // Snapshot DOM persistido: vinculado ao stateId, sem <script>, sem <style>, sem textos > 200 chars
-      const domEv = allDomSnapshots.find((d) => d.stateId === node.id);
+      const domEv = allDomSnapshots.find((d: Evidence) => d.stateId === node.id);
       expect(domEv).toBeDefined();
       expect(domEv?.blobPath).toMatch(/^evidence\/dom\/[a-f0-9]{64}\.html$/);
       if (!domEv) {
@@ -772,13 +773,15 @@ describe("@cleanroom/explorer — Fase 2 explore (BFS crawler e state-graph cont
       expect(domHtml).not.toContain("<style");
       expect(domHtml).not.toContain("</style>");
 
-      const textNodes = (domHtml.match(/>([^<]+)</g) ?? []).map((t) => t.slice(1, -1).trim());
+      const textNodes = (domHtml.match(/>([^<]+)</g) ?? []).map((t: string) =>
+        t.slice(1, -1).trim(),
+      );
       for (const t of textNodes) {
         expect(t.length).toBeLessThanOrEqual(200);
       }
 
       // Snapshot A11y persistido: vinculado ao stateId
-      const a11yEv = allA11ySnapshots.find((a) => a.stateId === node.id);
+      const a11yEv = allA11ySnapshots.find((a: Evidence) => a.stateId === node.id);
       expect(a11yEv).toBeDefined();
       expect(a11yEv?.blobPath).toMatch(/^evidence\/a11y\/[a-f0-9]{64}\.json$/);
       if (!a11yEv) {
