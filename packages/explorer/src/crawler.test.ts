@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type Evidence,
   type EvidenceStore,
   FakeLlmClient,
   type JobEvent,
@@ -710,6 +711,93 @@ describe("@cleanroom/explorer — Fase 2 explore (BFS crawler e state-graph cont
     expect(explorePhaseRecord?.status).toBe("done");
     expect((explorePhaseRecord?.stats?.statesDiscovered ?? 0) >= 9).toBe(true);
     expect(demo.store.getStats().adminVisitsCount).toBe(0);
+
+    // =========================================================================
+    // Verificações F1-05: screenshots multi-viewport + snapshots DOM/a11y
+    // =========================================================================
+    const stateGraphPath = resolveStateGraphPath(evidenceStore, created.id);
+    expect(existsSync(stateGraphPath)).toBe(true);
+    const parsedGraph: StateGraph = JSON.parse(readFileSync(stateGraphPath, "utf8"));
+    expect(parsedGraph.nodes.length).toBeGreaterThanOrEqual(9);
+
+    const allScreenshots = evidenceStore.list(created.id, { kind: "screenshot", limit: 500 }).items;
+    const allDomSnapshots = evidenceStore.list(created.id, {
+      kind: "dom_snapshot",
+      limit: 500,
+    }).items;
+    const allA11ySnapshots = evidenceStore.list(created.id, {
+      kind: "a11y_snapshot",
+      limit: 500,
+    }).items;
+
+    // Cada estado novo gera 3 screenshots nas viewports 375x812, 768x1024 e 1440x900
+    for (const node of parsedGraph.nodes) {
+      expect(node.screenshotEvidenceIds).toBeDefined();
+      expect(node.screenshotEvidenceIds).toHaveLength(3);
+      expect(node.domSnapshotEvidenceId).toBeDefined();
+      expect(node.a11ySnapshotEvidenceId).toBeDefined();
+
+      const nodeShots = allScreenshots.filter((s: Evidence) => s.stateId === node.id);
+      expect(nodeShots).toHaveLength(3);
+
+      const viewportsFound = nodeShots
+        .map((s: Evidence) => `${String(s.data.width)}x${String(s.data.height)}`)
+        .sort();
+      expect(viewportsFound).toEqual(["1440x900", "375x812", "768x1024"]);
+
+      for (const shot of nodeShots) {
+        expect(shot.blobPath).toMatch(/^evidence\/screenshots\/[a-f0-9]{64}\.png$/);
+        const shotBuffer = evidenceStore.readBlob(created.id, shot.id);
+        expect(shotBuffer).not.toBeNull();
+        expect(shotBuffer?.subarray(0, 8)).toEqual(
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        );
+      }
+
+      // Snapshot DOM persistido: vinculado ao stateId, sem <script>, sem <style>, sem textos > 200 chars
+      const domEv = allDomSnapshots.find((d: Evidence) => d.stateId === node.id);
+      expect(domEv).toBeDefined();
+      expect(domEv?.blobPath).toMatch(/^evidence\/dom\/[a-f0-9]{64}\.html$/);
+      if (!domEv) {
+        throw new Error(`domEv não encontrado para o nó ${node.id}`);
+      }
+      const domBuffer = evidenceStore.readBlob(created.id, domEv.id);
+      expect(domBuffer).not.toBeNull();
+      if (!domBuffer) {
+        throw new Error(`domBuffer nulo para a evidência ${domEv.id}`);
+      }
+      const domHtml = domBuffer.toString("utf8");
+
+      expect(domHtml).not.toContain("<script");
+      expect(domHtml).not.toContain("</script>");
+      expect(domHtml).not.toContain("<style");
+      expect(domHtml).not.toContain("</style>");
+
+      const textNodes = (domHtml.match(/>([^<]+)</g) ?? []).map((t: string) =>
+        t.slice(1, -1).trim(),
+      );
+      for (const t of textNodes) {
+        expect(t.length).toBeLessThanOrEqual(200);
+      }
+
+      // Snapshot A11y persistido: vinculado ao stateId
+      const a11yEv = allA11ySnapshots.find((a: Evidence) => a.stateId === node.id);
+      expect(a11yEv).toBeDefined();
+      expect(a11yEv?.blobPath).toMatch(/^evidence\/a11y\/[a-f0-9]{64}\.json$/);
+      if (!a11yEv) {
+        throw new Error(`a11yEv não encontrado para o nó ${node.id}`);
+      }
+      const a11yBuffer = evidenceStore.readBlob(created.id, a11yEv.id);
+      expect(a11yBuffer).not.toBeNull();
+      if (!a11yBuffer) {
+        throw new Error(`a11yBuffer nulo para a evidência ${a11yEv.id}`);
+      }
+      const a11yParsed = JSON.parse(a11yBuffer.toString("utf8"));
+      expect(a11yParsed.stateId).toBe(node.id);
+      expect(a11yParsed.format).toBe("ariaSnapshot");
+      expect(typeof a11yParsed.snapshot).toBe("string");
+      expect(a11yParsed.snapshot.length).toBeGreaterThan(0);
+    }
   });
 });
 
