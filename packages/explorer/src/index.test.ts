@@ -364,7 +364,7 @@ describe("@cleanroom/explorer — Fase 1 intake (fetch, sem browser)", () => {
       evidence: evidenceStore,
       phases: [phase],
       logger: createLogger({ level: "silent" }),
-      guardFactory: (m) => createScopeGuard(m, { sleep: async () => undefined }),
+      guardFactory: (m: Manifest) => createScopeGuard(m, { sleep: async () => undefined }),
     });
 
     const finishedJob = await runner.run(created.id, { enabledPhases: ["intake"] });
