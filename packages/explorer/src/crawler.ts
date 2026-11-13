@@ -26,6 +26,7 @@ import {
   type CdpConnector,
 } from "./browser-session.js";
 import { buildHarEntryFromHttp, createHarLog } from "./capture.js";
+import { extractFormSchemasFromHtml, probeForm } from "./form-probing.js";
 import { isUrlInAllowedOrigins, normalizeSeedUrl, sanitizeResponseHeaders } from "./intake.js";
 
 export const ACTION_KINDS = [
@@ -158,6 +159,9 @@ export interface ExploreCheckpoint {
   rateLimit429Count: number;
   currentRateLimitRps: number;
   sequenceCounter: number;
+  discoveredFormIds?: string[];
+  formsDiscoveredCount?: number;
+  formProbesCount?: number;
   updatedAt: string;
 }
 
@@ -168,6 +172,8 @@ export interface ExploreRunResult {
   checkpoint?: ExploreCheckpoint | undefined;
   stateEvidences: Evidence[];
   transitionEvidences: Evidence[];
+  formSchemaEvidences: Evidence[];
+  formProbeEvidences: Evidence[];
 }
 
 export interface ExplorePhaseOptions {
@@ -357,7 +363,7 @@ function defaultSleep(ms: number): Promise<void> {
   });
 }
 
-function decodeHtmlEntitiesLight(input: string): string {
+export function decodeHtmlEntitiesLight(input: string): string {
   return input.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z0-9]+);/g, (full, entity: string) => {
     const lower = entity.toLowerCase();
     if (NAMING_CHECK(lower)) {
@@ -490,7 +496,7 @@ function sanitizeInteractiveTree(nodes: readonly InteractiveTreeNode[]): Interac
 // Lightweight HTML AST parser for deterministic DOM structure & action extraction
 // ---------------------------------------------------------------------------
 
-interface HtmlElementNode {
+export interface HtmlElementNode {
   tag: string;
   attrs: Record<string, string>;
   children: Array<HtmlElementNode | string>;
@@ -513,7 +519,7 @@ const VOID_HTML_TAGS = new Set([
   "wbr",
 ]);
 
-function parseAttributes(rawAttrs: string): Record<string, string> {
+export function parseAttributes(rawAttrs: string): Record<string, string> {
   const attrs: Record<string, string> = {};
   const attrRegex =
     /([a-zA-Z_:][-a-zA-Z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
@@ -529,7 +535,7 @@ function parseAttributes(rawAttrs: string): Record<string, string> {
   return attrs;
 }
 
-function parseHtmlTree(html: string): HtmlElementNode {
+export function parseHtmlTree(html: string): HtmlElementNode {
   const root: HtmlElementNode = { tag: "root", attrs: {}, children: [] };
   const stack: HtmlElementNode[] = [root];
 
@@ -1737,11 +1743,15 @@ export async function runExplorePhase(
           pagesVisited: 0,
           statesDiscovered: 0,
           transitionsRecorded: 0,
+          formsDiscovered: 0,
+          formProbesCount: 0,
           skippedRepoTarget: 1,
         },
       },
       stateEvidences: [],
       transitionEvidences: [],
+      formSchemaEvidences: [],
+      formProbeEvidences: [],
     };
   }
 
@@ -1772,6 +1782,9 @@ export async function runExplorePhase(
   const edgeKeys = new Set<string>();
   const stateEvidences: Evidence[] = [];
   const transitionEvidences: Evidence[] = [];
+  const formSchemaEvidences: Evidence[] = [];
+  const formProbeEvidences: Evidence[] = [];
+  const discoveredFormIds = new Set<string>(savedCheckpoint?.discoveredFormIds ?? []);
 
   if (savedCheckpoint) {
     for (const node of savedCheckpoint.nodes) {
@@ -1842,6 +1855,8 @@ export async function runExplorePhase(
         },
         stateEvidences: [],
         transitionEvidences: [],
+        formSchemaEvidences: [],
+        formProbeEvidences: [],
       };
     }
 
@@ -1958,6 +1973,9 @@ export async function runExplorePhase(
       rateLimit429Count,
       currentRateLimitRps,
       sequenceCounter,
+      discoveredFormIds: Array.from(discoveredFormIds),
+      formsDiscoveredCount: formSchemaEvidences.length,
+      formProbesCount: formProbeEvidences.length,
       updatedAt: new Date(nowFn()).toISOString(),
     };
     ctx.saveCheckpoint(checkpoint);
@@ -2120,6 +2138,8 @@ export async function runExplorePhase(
             checkpoint,
             stateEvidences,
             transitionEvidences,
+            formSchemaEvidences,
+            formProbeEvidences,
           };
         }
         return {
@@ -2132,6 +2152,8 @@ export async function runExplorePhase(
           checkpoint,
           stateEvidences,
           transitionEvidences,
+          formSchemaEvidences,
+          formProbeEvidences,
         };
       }
 
@@ -2166,6 +2188,8 @@ export async function runExplorePhase(
             checkpoint,
             stateEvidences,
             transitionEvidences,
+            formSchemaEvidences,
+            formProbeEvidences,
           };
         }
 
@@ -2196,6 +2220,8 @@ export async function runExplorePhase(
           checkpoint,
           stateEvidences,
           transitionEvidences,
+          formSchemaEvidences,
+          formProbeEvidences,
         };
       }
 
@@ -2297,6 +2323,22 @@ export async function runExplorePhase(
           state: newNode,
           ctx,
         });
+      }
+
+      // Extração de schemas de formulários e probing validation-only (F1-06)
+      const formsOnPage = extractFormSchemasFromHtml(html, finalUrl, stateId);
+      for (const form of formsOnPage) {
+        if (!discoveredFormIds.has(form.formId)) {
+          discoveredFormIds.add(form.formId);
+          const formRes = await probeForm({
+            form,
+            ctx,
+            page,
+            fetchFn: options?.fetch,
+          });
+          formSchemaEvidences.push(formRes.formSchemaEvidence);
+          formProbeEvidences.push(...formRes.probeEvidences);
+        }
       }
 
       // Se a página atual contém links de paginação para a própria lista base (sem ?page= na URL atual),
@@ -2406,6 +2448,8 @@ export async function runExplorePhase(
           pagesVisited: graph.stats.pagesVisited,
           statesDiscovered: graph.stats.statesDiscovered,
           transitionsRecorded: graph.stats.transitionsRecorded,
+          formsDiscovered: formSchemaEvidences.length,
+          formProbesCount: formProbeEvidences.length,
           skippedOutOfScope: graph.stats.skippedOutOfScope,
           skippedDestructive: graph.stats.skippedDestructive,
           skippedPaginationLimit: graph.stats.skippedPaginationLimit,
@@ -2418,6 +2462,8 @@ export async function runExplorePhase(
       checkpoint,
       stateEvidences,
       transitionEvidences,
+      formSchemaEvidences,
+      formProbeEvidences,
     };
   };
 

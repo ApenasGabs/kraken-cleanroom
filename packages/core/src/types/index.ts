@@ -162,6 +162,98 @@ export interface Page<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Form schema & probing contracts (docs/03 §2, docs/04 Fase 2, docs/05 §2)
+// ---------------------------------------------------------------------------
+
+export interface FormFieldOption {
+  value: string;
+  label: string;
+  selected?: boolean;
+}
+
+export interface FormFieldSchema {
+  name: string;
+  type: string;
+  label?: string;
+  required?: boolean;
+  pattern?: string;
+  min?: string | number;
+  max?: string | number;
+  step?: string | number;
+  minLength?: number;
+  maxLength?: number;
+  placeholder?: string;
+  defaultValue?: string;
+  options?: FormFieldOption[];
+}
+
+export interface FormSubmitButton {
+  label: string;
+  selector?: string;
+  type?: string;
+}
+
+export interface FormSchema {
+  formId: string;
+  name?: string;
+  action: string;
+  method: string;
+  enctype?: string;
+  selector: string;
+  url: string;
+  stateId?: string;
+  fields: FormFieldSchema[];
+  submitButton?: FormSubmitButton;
+}
+
+export const FORM_PROBE_TYPES = [
+  "empty_required",
+  "min_length",
+  "max_length",
+  "invalid_format",
+  "negative_number",
+  "past_date",
+  "pattern_mismatch",
+  "custom",
+] as const;
+
+export type FormProbeType = (typeof FORM_PROBE_TYPES)[number];
+
+export interface FormProbeInput {
+  field: string;
+  probeType: FormProbeType;
+  inputSummary: string;
+  value: unknown;
+}
+
+export interface FormProbeEvidenceData {
+  formId: string;
+  field: string;
+  probeType: FormProbeType;
+  inputSummary: string;
+  input?: unknown;
+  observedMessage: string;
+  httpStatus?: number;
+  selector?: string;
+  url?: string;
+  passed?: boolean;
+}
+
+export interface FormProbeResult {
+  formId: string;
+  field: string;
+  probeType: FormProbeType;
+  inputSummary: string;
+  input?: unknown;
+  observedMessage: string;
+  httpStatus?: number;
+  selector?: string;
+  url?: string;
+  passed: boolean;
+  evidenceId?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Network call & HAR contracts (docs/04 Fase 3, docs/05 §2, docs/10 §5)
 // ---------------------------------------------------------------------------
 
