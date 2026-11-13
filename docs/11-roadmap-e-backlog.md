@@ -80,7 +80,7 @@ flowchart LR
 - Extração de schema de formulários; bateria de valores inválidos; captura de mensagens e 4xx; nunca concluir submissão válida.
 - **Aceite:** detecta as 3 validações do formulário "Novo projeto" da demo-app; nenhum projeto criado na API da demo (verificar contador).
 
-### [ ] F1-07 Capture: HAR + sanitização + `network_call` (M) - Dep: F1-04
+### [x] F1-07 Capture: HAR + sanitização + `network_call` (M) - Dep: F1-04
 - `recordHar`; sanitização de `04` Fase 3; shapes sem valores.
 - **Aceite:** teste unitário de sanitização com HAR fixture contendo cookies/tokens (nenhum sobrevive); evidências `network_call` com `urlTemplate`.
 

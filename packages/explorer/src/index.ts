@@ -2,6 +2,7 @@ import type { PhaseId } from "@cleanroom/core";
 
 export const INTAKE_PHASE_ID: PhaseId = "intake";
 export const EXPLORER_PHASE_ID: PhaseId = "explore";
+export const CAPTURE_PHASE_ID: PhaseId = "capture";
 
 export {
   BrowserSession,
@@ -96,3 +97,26 @@ export {
   type ProbeFormOptions,
   type FormProbeRunResult,
 } from "./form-probing.js";
+
+export {
+  SENSITIVE_KEY_REGEX,
+  FORBIDDEN_HEADERS,
+  MAX_BODY_BYTES,
+  REDACTED_MARKER,
+  TRUNCATED_MARKER,
+  inferJsonShape,
+  normalizeUrlTemplate,
+  isApiRequest,
+  sanitizeHar,
+  type HarSanitizerOptions,
+} from "./har-sanitizer.js";
+
+export {
+  createHarLog,
+  buildHarEntryFromHttp,
+  runCapturePhase,
+  createCapturePhase,
+  capturePhase,
+  type CapturePhaseOptions,
+  type CaptureRunResult,
+} from "./capture.js";

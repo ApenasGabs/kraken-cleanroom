@@ -15,6 +15,7 @@ import {
 import type {
   Browser,
   BrowserContext,
+  BrowserContextOptions,
   Page as PlaywrightPage,
   Response as PlaywrightResponse,
   Route as PlaywrightRoute,
@@ -24,6 +25,7 @@ import {
   type BrowserSessionOptions,
   type CdpConnector,
 } from "./browser-session.js";
+import { buildHarEntryFromHttp, createHarLog } from "./capture.js";
 import { extractFormSchemasFromHtml, probeForm } from "./form-probing.js";
 import { isUrlInAllowedOrigins, normalizeSeedUrl, sanitizeResponseHeaders } from "./intake.js";
 
@@ -1461,12 +1463,17 @@ function writeStateGraphToDisk(
  * permitindo executar `BrowserSession` e `runExplorePhase` em testes de integração
  * sem depender de um processo Chrome externo quando o Browserless não está presente.
  */
-export function createFetchBackedCdpConnector(fetchFn: typeof globalThis.fetch): CdpConnector {
+export function createFetchBackedCdpConnector(
+  fetchFn: typeof globalThis.fetch,
+  connectorOptions?: { recordHarPath?: string | undefined },
+): CdpConnector {
   return async () => {
     let currentUrl = "about:blank";
     let currentHtml = "";
     let pageClosed = false;
     let viewport = { width: 1440, height: 900 };
+    const recordedEntries: import("@cleanroom/core").HarEntry[] = [];
+    let harOutputPath = connectorOptions?.recordHarPath;
 
     const mockPage: PlaywrightPage = {
       url: () => currentUrl,
@@ -1485,6 +1492,7 @@ export function createFetchBackedCdpConnector(fetchFn: typeof globalThis.fetch):
       },
       waitForLoadState: async () => undefined,
       goto: async (url: string) => {
+        const startTime = Date.now();
         const res = await fetchFn(url, {
           method: "GET",
           redirect: "follow",
@@ -1499,6 +1507,20 @@ export function createFetchBackedCdpConnector(fetchFn: typeof globalThis.fetch):
         res.headers.forEach((value, key) => {
           headersObj[key.toLowerCase()] = value;
         });
+
+        if (harOutputPath) {
+          recordedEntries.push(
+            buildHarEntryFromHttp({
+              url: currentUrl,
+              method: "GET",
+              status: res.status,
+              statusText: res.statusText,
+              resHeaders: headersObj,
+              resBody: currentHtml,
+              durationMs: Date.now() - startTime,
+            }),
+          );
+        }
 
         const playwrightResponse = {
           url: () => currentUrl,
@@ -1525,11 +1547,28 @@ export function createFetchBackedCdpConnector(fetchFn: typeof globalThis.fetch):
       route: async () => undefined,
       close: async () => {
         pageClosed = true;
+        if (harOutputPath && recordedEntries.length > 0) {
+          try {
+            mkdirSync(dirname(harOutputPath), { recursive: true });
+            writeFileSync(
+              harOutputPath,
+              JSON.stringify(createHarLog(recordedEntries), null, 2),
+              "utf8",
+            );
+          } catch {
+            // ignora falha em ambiente de teste isolado
+          }
+        }
       },
     } as unknown as BrowserContext;
 
     const mockBrowser: Browser = {
-      newContext: async () => mockContext,
+      newContext: async (contextOptions?: BrowserContextOptions) => {
+        if (contextOptions?.recordHar?.path) {
+          harOutputPath = contextOptions.recordHar.path;
+        }
+        return mockContext;
+      },
       close: async () => undefined,
       version: () => "FetchBackedCleanroomBrowser/0.1",
     } as unknown as Browser;
@@ -2437,15 +2476,27 @@ export async function runExplorePhase(
     options?.sessionOptions?.wsEndpoint === undefined &&
     options?.sessionOptions?.cdpConnector === undefined;
 
+  const jobDir = ctx.evidence.resolveJobDir(ctx.job.id);
+  const rawHarPath = join(jobDir, "raw", "network.har");
+  const recordHarEnabled = ctx.manifest.methods.networkHar !== false;
+
   const sessionOpts: BrowserSessionOptions = {
     ...options?.sessionOptions,
     jobId: ctx.job.id,
     manifest: ctx.manifest,
     log: ctx.log,
+    contextOptions: {
+      ...options?.sessionOptions?.contextOptions,
+      ...(recordHarEnabled && !options?.sessionOptions?.contextOptions?.recordHar
+        ? { recordHar: { path: rawHarPath, content: "embed", mode: "full" as const } }
+        : {}),
+    },
     ...(useFetchAdapter && options?.fetch
       ? {
           wsEndpoint: "ws://local-fetch-adapter:9222",
-          cdpConnector: createFetchBackedCdpConnector(options.fetch),
+          cdpConnector: createFetchBackedCdpConnector(options.fetch, {
+            recordHarPath: recordHarEnabled ? rawHarPath : undefined,
+          }),
         }
       : {}),
   };
