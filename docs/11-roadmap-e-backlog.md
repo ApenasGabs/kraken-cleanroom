@@ -72,7 +72,7 @@ flowchart LR
 - Algoritmo BFS de `04` Fase 2; fingerprint; extração e classificação de ações; respeito a `maxPages/maxDepth/forbiddenPaths/destructive`; `graph/state-graph.json`.
 - **Aceite (E2E demo-app):** descobre home, lista, detalhe, novo projeto, pricing, help; **nunca** visita `/admin` nem clica em botão "Excluir"; grafo serializado válido.
 
-### [ ] F1-05 Explorer: screenshots multi-viewport + snapshots DOM/a11y (M) - Dep: F1-04
+### [x] F1-05 Explorer: screenshots multi-viewport + snapshots DOM/a11y (M) - Dep: F1-04
 - 375/768/1440 por estado novo; DOM reduzido; a11y snapshot; evidências correspondentes.
 - **Aceite:** para demo-app, 3 screenshots por estado, dedup por hash; DOM sem `<script>`.
 

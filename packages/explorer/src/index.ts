@@ -56,6 +56,10 @@ export {
   detectExploreChallenge,
   resolveStateGraphPath,
   validateStateGraph,
+  generateMockPng,
+  reduceDomSnapshot,
+  extractAriaSnapshotFromHtml,
+  captureA11ySnapshot,
   createFetchBackedCdpConnector,
   runExplorePhase,
   createExplorePhase,
@@ -75,4 +79,5 @@ export {
   type ExplorePhaseOptions,
   type RawActionCandidateInput,
   type PaginationInfo,
+  type A11ySnapshotResult,
 } from "./crawler.js";

@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { crc32, deflateSync } from "node:zlib";
 import {
   type Evidence,
   type EvidenceStore,
@@ -108,6 +109,9 @@ export interface StateGraphNode {
   actions: CandidateAction[];
   discoveredAt: string;
   evidenceId: string;
+  screenshotEvidenceIds?: string[] | undefined;
+  domSnapshotEvidenceId?: string | undefined;
+  a11ySnapshotEvidenceId?: string | undefined;
 }
 
 export interface StateGraphStats {
@@ -119,6 +123,9 @@ export interface StateGraphStats {
   skippedPaginationLimit: number;
   maxDepthReached: number;
   rateLimit429Count: number;
+  screenshotsCaptured?: number | undefined;
+  domSnapshotsCaptured?: number | undefined;
+  a11ySnapshotsCaptured?: number | undefined;
 }
 
 export interface StateGraph {
@@ -166,6 +173,9 @@ export interface ExploreRunResult {
   checkpoint?: ExploreCheckpoint | undefined;
   stateEvidences: Evidence[];
   transitionEvidences: Evidence[];
+  screenshotEvidences?: Evidence[] | undefined;
+  domSnapshotEvidences?: Evidence[] | undefined;
+  a11ySnapshotEvidences?: Evidence[] | undefined;
 }
 
 export interface ExplorePhaseOptions {
@@ -196,6 +206,12 @@ export interface ExplorePhaseOptions {
   maxPagesPerList?: number | undefined;
   /** Sobrescreve o limite de duração máxima em ms (default: `manifest.limits.maxDurationMin * 60_000`). */
   maxDurationMs?: number | undefined;
+  /** Se deve capturar screenshots nas viewports configuradas no manifesto para cada estado novo (default: true). */
+  captureScreenshots?: boolean | undefined;
+  /** Se deve capturar snapshot DOM reduzido para cada estado novo (default: true). */
+  captureDomSnapshot?: boolean | undefined;
+  /** Se deve capturar snapshot da árvore de acessibilidade para cada estado novo (default: true). */
+  captureA11ySnapshot?: boolean | undefined;
   /** Relógio customizado (ms) para testes determinísticos. */
   now?: (() => number) | undefined;
   /** Função de espera customizada (ms) para testes determinísticos. */
@@ -1399,6 +1415,21 @@ export function validateStateGraph(input: unknown): StateGraph {
     if (typeof n.url !== "string" || typeof n.normalizedUrl !== "string") {
       throw new Error(`state-graph inválido: nó "${n.id}" sem url/normalizedUrl.`);
     }
+    if (n.screenshotEvidenceIds !== undefined && !Array.isArray(n.screenshotEvidenceIds)) {
+      throw new Error(`state-graph inválido: nó "${n.id}" com screenshotEvidenceIds inválido.`);
+    }
+    if (
+      n.domSnapshotEvidenceId !== undefined &&
+      (typeof n.domSnapshotEvidenceId !== "string" || !n.domSnapshotEvidenceId.startsWith("ev_"))
+    ) {
+      throw new Error(`state-graph inválido: nó "${n.id}" com domSnapshotEvidenceId inválido.`);
+    }
+    if (
+      n.a11ySnapshotEvidenceId !== undefined &&
+      (typeof n.a11ySnapshotEvidenceId !== "string" || !n.a11ySnapshotEvidenceId.startsWith("ev_"))
+    ) {
+      throw new Error(`state-graph inválido: nó "${n.id}" com a11ySnapshotEvidenceId inválido.`);
+    }
     nodeIds.add(n.id);
   }
 
@@ -1447,6 +1478,302 @@ function writeStateGraphToDisk(
 }
 
 // ---------------------------------------------------------------------------
+// F1-05: Multi-viewport screenshots, reduced DOM snapshot and A11y snapshot
+// ---------------------------------------------------------------------------
+
+const MOCK_PNG_CACHE = new Map<string, Buffer>();
+
+function createPngChunk(type: string, data: Buffer): Buffer {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const typeBuf = Buffer.from(type, "ascii");
+  const crc = Buffer.alloc(4);
+  const crcVal = crc32(Buffer.concat([typeBuf, data]));
+  crc.writeUInt32BE(crcVal >>> 0, 0);
+  return Buffer.concat([len, typeBuf, data, crc]);
+}
+
+/**
+ * Gera um buffer PNG mínimo e 100% válido nas dimensões especificadas (`width` x `height`),
+ * com seed determinístico opcional para gerar hashes distintos por URL/conteúdo em mocks/testes.
+ */
+export function generateMockPng(width: number, height: number, seed?: string): Buffer {
+  const safeW = Math.max(1, Math.min(width, 7680));
+  const safeH = Math.max(1, Math.min(height, 4320));
+  const cacheKey = `${safeW}x${safeH}:${seed ?? ""}`;
+  const cached = MOCK_PNG_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(safeW, 0);
+  ihdr.writeUInt32BE(safeH, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // color type: RGB
+  ihdr[10] = 0; // compression
+  ihdr[11] = 0; // filter
+  ihdr[12] = 0; // interlace
+  const ihdrChunk = createPngChunk("IHDR", ihdr);
+
+  const scanlineLength = 1 + safeW * 3;
+  const rawData = Buffer.alloc(safeH * scanlineLength);
+  if (seed && seed.length > 0) {
+    const seedBytes = Buffer.from(seed, "utf8");
+    for (let i = 0; i < seedBytes.length; i++) {
+      const idx = 1 + (i % (rawData.length - 1));
+      rawData[idx] = ((rawData[idx] ?? 0) ^ (seedBytes[i] ?? 0)) & 0xff;
+    }
+  }
+  const compressed = deflateSync(rawData);
+  const idatChunk = createPngChunk("IDAT", compressed);
+  const iendChunk = createPngChunk("IEND", Buffer.alloc(0));
+  const fullPng = Buffer.concat([sig, ihdrChunk, idatChunk, iendChunk]);
+
+  MOCK_PNG_CACHE.set(cacheKey, fullPng);
+  return fullPng;
+}
+
+/**
+ * Reduz e sanitiza um documento HTML para persistência clean room (`docs/04` Fase 2 passo 2.4 e `docs/10` §3-§4):
+ * - Remove todas as tags `<script>` e seus conteúdos (incluindo self-closing e variações).
+ * - Remove todas as tags `<style>` e seus conteúdos (incluindo self-closing e variações).
+ * - Remove comentários HTML (`<!-- ... -->`).
+ * - Remove tags `<noscript>` e seus conteúdos.
+ * - Reduz `<svg>` pesados (> 300 caracteres ou com tags internas como `<path>`, `<polygon>`, etc.), preservando a tag `<svg>` e atributos sanitizados.
+ * - Trunca atributos `data-*` longos (> 40 caracteres) e URLs base64 longas para `[TRUNCATED]`.
+ * - Trunca nós de texto acima de 200 caracteres (proteção clean room / LGPD).
+ */
+export function reduceDomSnapshot(html: string): string {
+  if (!html || typeof html !== "string") {
+    return "";
+  }
+
+  let cleaned = html
+    // 1. Remove comentários HTML
+    .replace(/<!--[\s\S]*?-->/g, "");
+
+  // 2. Remove <script> (loop defensivo para evitar tags aninhadas ou malformadas)
+  while (/<script\b/i.test(cleaned)) {
+    const prev = cleaned;
+    cleaned = cleaned
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<script\b[^>]*\/>/gi, "")
+      .replace(/<script\b[^>]*>/gi, "");
+    if (cleaned === prev) {
+      break;
+    }
+  }
+
+  // 3. Remove <style> (loop defensivo)
+  while (/<style\b/i.test(cleaned)) {
+    const prev = cleaned;
+    cleaned = cleaned
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<style\b[^>]*\/>/gi, "")
+      .replace(/<style\b[^>]*>/gi, "");
+    if (cleaned === prev) {
+      break;
+    }
+  }
+
+  // 4. Remove <noscript>
+  cleaned = cleaned.replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, "");
+
+  // 5. Reduz SVGs pesados
+  cleaned = cleaned.replace(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/gi, (full, attrs, inner) => {
+    if (full.length > 300 || /<path|<polygon|<polyline|<g|<rect/i.test(inner)) {
+      return `<svg${attrs} data-cleanroom-reduced="svg"></svg>`;
+    }
+    return full;
+  });
+
+  // 6. Trunca atributos data-* longos (> 40 chars) e data: URIs longas
+  cleaned = cleaned.replace(/<(?:[a-zA-Z][a-zA-Z0-9-]*)([^>]*?)>/g, (tagMatch) => {
+    return tagMatch
+      .replace(
+        /\b(data-[a-zA-Z0-9_.:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi,
+        (attrMatch, attrName, val1, val2) => {
+          const val = val1 !== undefined ? val1 : val2;
+          if (val && val.length > 40) {
+            return `${attrName}="[TRUNCATED]"`;
+          }
+          return attrMatch;
+        },
+      )
+      .replace(
+        /\b(src|href)\s*=\s*(?:"data:[^"]{40,}"|'data:[^']{40,}')/gi,
+        (_match, attr) => `${attr}="data:[TRUNCATED]"`,
+      );
+  });
+
+  // 7. Trunca nós de texto acima de 200 caracteres (nós entre tags)
+  cleaned = cleaned.replace(/>([^<]+)</g, (match, text) => {
+    const trimmed = text.trim();
+    if (trimmed.length > 200) {
+      const leading = text.match(/^\s*/)?.[0] ?? "";
+      const trailing = text.match(/\s*$/)?.[0] ?? "";
+      return `>${leading}${trimmed.slice(0, 197)}...${trailing}<`;
+    }
+    return match;
+  });
+
+  // Trunca texto inicial (antes da primeira tag) e final (após última tag) se houver
+  if (!cleaned.startsWith("<")) {
+    cleaned = cleaned.replace(/^([^<]+)/, (m, text) => {
+      const trimmed = text.trim();
+      if (trimmed.length > 200) {
+        return `${trimmed.slice(0, 197)}...`;
+      }
+      return m;
+    });
+  }
+  if (!cleaned.endsWith(">")) {
+    cleaned = cleaned.replace(/([^>]+)$/, (m, text) => {
+      const trimmed = text.trim();
+      if (trimmed.length > 200) {
+        return `${trimmed.slice(0, 197)}...`;
+      }
+      return m;
+    });
+  }
+
+  // Remove linhas em branco excessivas
+  return cleaned.replace(/\n\s*\n\s*\n/g, "\n\n").trim();
+}
+
+/**
+ * Gera uma árvore de acessibilidade simplificada no formato YAML do `ariaSnapshot` (`docs/04` Fase 2 passo 2.4).
+ */
+export function extractAriaSnapshotFromHtml(html: string): string {
+  if (!html || typeof html !== "string") {
+    return "- document";
+  }
+
+  const lines: string[] = ["- document:"];
+
+  const titleMatch = html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+  if (titleMatch?.[1]) {
+    const title = decodeHtmlEntitiesLight(titleMatch[1]).replace(/\s+/g, " ").trim();
+    if (title) {
+      lines.push(`  - heading "${title.slice(0, 100)}" [level=1]`);
+    }
+  }
+
+  const headingRegex = /<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  let hMatch = headingRegex.exec(html);
+  while (hMatch !== null) {
+    const level = hMatch[1];
+    const text = decodeHtmlEntitiesLight(hMatch[2] ?? "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) {
+      lines.push(`  - heading "${text.slice(0, 100)}" [level=${level}]`);
+    }
+    hMatch = headingRegex.exec(html);
+  }
+
+  const linkRegex = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
+  let aMatch = linkRegex.exec(html);
+  let linksCount = 0;
+  while (aMatch !== null && linksCount < 30) {
+    const text = decodeHtmlEntitiesLight(aMatch[2] ?? "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) {
+      lines.push(`  - link "${text.slice(0, 80)}"`);
+      linksCount += 1;
+    }
+    aMatch = linkRegex.exec(html);
+  }
+
+  const btnRegex = /<button\b([^>]*)>([\s\S]*?)<\/button>/gi;
+  let bMatch = btnRegex.exec(html);
+  let btnCount = 0;
+  while (bMatch !== null && btnCount < 30) {
+    const text = decodeHtmlEntitiesLight(bMatch[2] ?? "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) {
+      lines.push(`  - button "${text.slice(0, 80)}"`);
+      btnCount += 1;
+    }
+    bMatch = btnRegex.exec(html);
+  }
+
+  return lines.length > 1 ? lines.join("\n") : "- document";
+}
+
+export interface A11ySnapshotResult {
+  snapshot: string | Record<string, unknown>;
+  format: "ariaSnapshot" | "accessibilityTree" | "empty";
+}
+
+/**
+ * Captura a árvore de acessibilidade da página atual (`docs/04` Fase 2 passo 2.4):
+ * - No Playwright 1.49+, prioriza `page.locator("body").ariaSnapshot()`.
+ * - Como fallback para Playwright legado ou mocks, tenta `page.accessibility.snapshot()`.
+ * - Se ambos falharem ou indisponíveis, gera representação a partir de `htmlFallback`.
+ */
+export async function captureA11ySnapshot(
+  page: PlaywrightPage,
+  htmlFallback?: string,
+): Promise<A11ySnapshotResult> {
+  // 1. Playwright 1.49+ ariaSnapshot()
+  try {
+    if (typeof page.locator === "function") {
+      const bodyLocator = page.locator("body") as unknown as {
+        ariaSnapshot?: () => Promise<unknown>;
+      };
+      if (typeof bodyLocator.ariaSnapshot === "function") {
+        const yaml = await bodyLocator.ariaSnapshot();
+        if (typeof yaml === "string" && yaml.trim().length > 0) {
+          return {
+            snapshot: yaml.trim(),
+            format: "ariaSnapshot",
+          };
+        }
+      }
+    }
+  } catch {
+    // continua para o fallback
+  }
+
+  // 2. Playwright legado accessibility.snapshot()
+  try {
+    const pageWithA11y = page as { accessibility?: { snapshot?: () => Promise<unknown> } };
+    if (typeof pageWithA11y.accessibility?.snapshot === "function") {
+      const tree = await pageWithA11y.accessibility.snapshot();
+      if (tree && typeof tree === "object") {
+        return {
+          snapshot: tree as Record<string, unknown>,
+          format: "accessibilityTree",
+        };
+      }
+    }
+  } catch {
+    // continua para o fallback
+  }
+
+  // 3. Fallback estruturado a partir do HTML
+  if (htmlFallback && typeof htmlFallback === "string") {
+    return {
+      snapshot: extractAriaSnapshotFromHtml(htmlFallback),
+      format: "ariaSnapshot",
+    };
+  }
+
+  return {
+    snapshot: "- document",
+    format: "empty",
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Fetch-backed CDP Connector (for fast deterministic integration tests)
 // ---------------------------------------------------------------------------
 
@@ -1478,6 +1805,22 @@ export function createFetchBackedCdpConnector(fetchFn: typeof globalThis.fetch):
         pageClosed = true;
       },
       waitForLoadState: async () => undefined,
+      waitForTimeout: async () => undefined,
+      screenshot: async (_opts?: { type?: string }) => {
+        return generateMockPng(viewport.width, viewport.height, currentUrl);
+      },
+      locator: (_selector: string) => {
+        return {
+          ariaSnapshot: async () => {
+            return extractAriaSnapshotFromHtml(currentHtml);
+          },
+        } as unknown as ReturnType<PlaywrightPage["locator"]>;
+      },
+      accessibility: {
+        snapshot: async () => {
+          return { role: "WebArea", name: "MockPage" };
+        },
+      } as unknown as { snapshot: () => Promise<unknown> },
       goto: async (url: string) => {
         const res = await fetchFn(url, {
           method: "GET",
@@ -1733,6 +2076,12 @@ export async function runExplorePhase(
   const edgeKeys = new Set<string>();
   const stateEvidences: Evidence[] = [];
   const transitionEvidences: Evidence[] = [];
+  const screenshotEvidences: Evidence[] = [];
+  const domSnapshotEvidences: Evidence[] = [];
+  const a11ySnapshotEvidences: Evidence[] = [];
+  let screenshotsCaptured = 0;
+  let domSnapshotsCaptured = 0;
+  let a11ySnapshotsCaptured = 0;
 
   if (savedCheckpoint) {
     for (const node of savedCheckpoint.nodes) {
@@ -1887,6 +2236,9 @@ export async function runExplorePhase(
         skippedPaginationLimit,
         maxDepthReached,
         rateLimit429Count,
+        screenshotsCaptured,
+        domSnapshotsCaptured,
+        a11ySnapshotsCaptured,
       },
     };
   };
@@ -2081,6 +2433,9 @@ export async function runExplorePhase(
             checkpoint,
             stateEvidences,
             transitionEvidences,
+            screenshotEvidences,
+            domSnapshotEvidences,
+            a11ySnapshotEvidences,
           };
         }
         return {
@@ -2093,6 +2448,9 @@ export async function runExplorePhase(
           checkpoint,
           stateEvidences,
           transitionEvidences,
+          screenshotEvidences,
+          domSnapshotEvidences,
+          a11ySnapshotEvidences,
         };
       }
 
@@ -2127,6 +2485,9 @@ export async function runExplorePhase(
             checkpoint,
             stateEvidences,
             transitionEvidences,
+            screenshotEvidences,
+            domSnapshotEvidences,
+            a11ySnapshotEvidences,
           };
         }
 
@@ -2157,6 +2518,9 @@ export async function runExplorePhase(
           checkpoint,
           stateEvidences,
           transitionEvidences,
+          screenshotEvidences,
+          domSnapshotEvidences,
+          a11ySnapshotEvidences,
         };
       }
 
@@ -2193,6 +2557,129 @@ export async function runExplorePhase(
       const candidateActions = extractCandidateActionsFromHtml(html, finalUrl, ctx.guard);
       const discoveredAt = new Date(nowFn()).toISOString();
 
+      // 1. Multi-viewport Screenshots (F1-05)
+      const stateScreenshotEvidenceIds: string[] = [];
+      if (options?.captureScreenshots !== false && session.viewports.length > 0) {
+        for (const vp of session.viewports) {
+          try {
+            await session.setViewport(vp, page);
+            if (
+              stabilizationMs > 0 &&
+              typeof (page as unknown as { waitForTimeout?: (ms: number) => Promise<void> })
+                .waitForTimeout === "function"
+            ) {
+              await (
+                page as unknown as { waitForTimeout: (ms: number) => Promise<void> }
+              ).waitForTimeout(Math.min(100, stabilizationMs));
+            }
+            if (typeof page.screenshot === "function") {
+              const buffer = await page.screenshot({ type: "png" });
+              const shotSha = computeSha256(buffer);
+              const shotEvidence = ctx.evidence.put({
+                jobId: ctx.job.id,
+                kind: "screenshot",
+                phase: "explore",
+                sha256: shotSha,
+                url: finalUrl,
+                stateId,
+                blob: buffer,
+                summary: `Screenshot ${vp.width}x${vp.height} do estado ${stateId} em ${finalUrl}`,
+                data: {
+                  width: vp.width,
+                  height: vp.height,
+                  viewport: `${vp.width}x${vp.height}`,
+                  stateId,
+                  url: finalUrl,
+                },
+              });
+              screenshotEvidences.push(shotEvidence);
+              stateScreenshotEvidenceIds.push(shotEvidence.id);
+              screenshotsCaptured += 1;
+            }
+          } catch (shotErr) {
+            ctx.log?.warn?.(
+              { err: shotErr, viewport: vp, stateId },
+              "falha ao capturar screenshot do viewport",
+            );
+          }
+        }
+        // Restaura viewport desktop padrão da sessão
+        try {
+          await session.setViewport(session.defaultViewport, page);
+        } catch {
+          // ignore
+        }
+      }
+
+      // 2. Snapshot DOM Reduzido (F1-05)
+      let stateDomSnapshotEvidenceId: string | undefined;
+      if (options?.captureDomSnapshot !== false) {
+        try {
+          const reducedHtml = reduceDomSnapshot(html);
+          const domSha = computeSha256(reducedHtml);
+          const domEvidence = ctx.evidence.put({
+            jobId: ctx.job.id,
+            kind: "dom_snapshot",
+            phase: "explore",
+            sha256: domSha,
+            url: finalUrl,
+            stateId,
+            blob: reducedHtml,
+            summary: `Snapshot DOM reduzido do estado ${stateId} em ${finalUrl} (${reducedHtml.length} bytes)`,
+            data: {
+              stateId,
+              url: finalUrl,
+              originalLength: html.length,
+              reducedLength: reducedHtml.length,
+            },
+          });
+          domSnapshotEvidences.push(domEvidence);
+          stateDomSnapshotEvidenceId = domEvidence.id;
+          domSnapshotsCaptured += 1;
+        } catch (domErr) {
+          ctx.log?.warn?.({ err: domErr, stateId }, "falha ao gerar snapshot DOM reduzido");
+        }
+      }
+
+      // 3. Snapshot de Acessibilidade (F1-05)
+      let stateA11ySnapshotEvidenceId: string | undefined;
+      if (options?.captureA11ySnapshot !== false) {
+        try {
+          const a11yResult = await captureA11ySnapshot(page, html);
+          const a11yPayload = {
+            stateId,
+            url: finalUrl,
+            format: a11yResult.format,
+            snapshot: a11yResult.snapshot,
+          };
+          const a11ySerialized = canonicalJson(a11yPayload);
+          const a11ySha = computeSha256(a11ySerialized);
+          const a11yEvidence = ctx.evidence.put({
+            jobId: ctx.job.id,
+            kind: "a11y_snapshot",
+            phase: "explore",
+            sha256: a11ySha,
+            url: finalUrl,
+            stateId,
+            blob: a11ySerialized,
+            summary: `Snapshot de acessibilidade (${a11yResult.format}) do estado ${stateId} em ${finalUrl}`,
+            data: {
+              stateId,
+              url: finalUrl,
+              format: a11yResult.format,
+            },
+          });
+          a11ySnapshotEvidences.push(a11yEvidence);
+          stateA11ySnapshotEvidenceId = a11yEvidence.id;
+          a11ySnapshotsCaptured += 1;
+        } catch (a11yErr) {
+          ctx.log?.warn?.(
+            { err: a11yErr, stateId },
+            "falha ao capturar snapshot de acessibilidade",
+          );
+        }
+      }
+
       const statePayload = {
         stateId,
         fingerprint,
@@ -2210,6 +2697,15 @@ export async function runExplorePhase(
           priorityBucket: a.priorityBucket,
           ...(a.targetUrl ? { targetUrl: a.targetUrl } : {}),
         })),
+        ...(stateScreenshotEvidenceIds.length > 0
+          ? { screenshotEvidenceIds: stateScreenshotEvidenceIds }
+          : {}),
+        ...(stateDomSnapshotEvidenceId
+          ? { domSnapshotEvidenceId: stateDomSnapshotEvidenceId }
+          : {}),
+        ...(stateA11ySnapshotEvidenceId
+          ? { a11ySnapshotEvidenceId: stateA11ySnapshotEvidenceId }
+          : {}),
       };
 
       const stateEvidence = ctx.evidence.put({
@@ -2240,6 +2736,15 @@ export async function runExplorePhase(
         actions: candidateActions,
         discoveredAt,
         evidenceId: stateEvidence.id,
+        ...(stateScreenshotEvidenceIds.length > 0
+          ? { screenshotEvidenceIds: stateScreenshotEvidenceIds }
+          : {}),
+        ...(stateDomSnapshotEvidenceId
+          ? { domSnapshotEvidenceId: stateDomSnapshotEvidenceId }
+          : {}),
+        ...(stateA11ySnapshotEvidenceId
+          ? { a11ySnapshotEvidenceId: stateA11ySnapshotEvidenceId }
+          : {}),
       };
 
       nodes.push(newNode);
@@ -2372,6 +2877,9 @@ export async function runExplorePhase(
           skippedPaginationLimit: graph.stats.skippedPaginationLimit,
           maxDepthReached: graph.stats.maxDepthReached,
           rateLimit429Count: graph.stats.rateLimit429Count,
+          screenshotsCaptured,
+          domSnapshotsCaptured,
+          a11ySnapshotsCaptured,
         },
       },
       stateGraph: graph,
@@ -2379,6 +2887,9 @@ export async function runExplorePhase(
       checkpoint,
       stateEvidences,
       transitionEvidences,
+      screenshotEvidences,
+      domSnapshotEvidences,
+      a11ySnapshotEvidences,
     };
   };
 
