@@ -698,7 +698,7 @@ describe("@cleanroom/explorer — Fase 2 explore (BFS crawler e state-graph cont
         }),
       ],
       logger: createLogger({ level: "silent" }),
-      guardFactory: (m) => createScopeGuard(m, { sleep: async () => undefined }),
+      guardFactory: (m: Manifest) => createScopeGuard(m, { sleep: async () => undefined }),
     });
 
     const finishedJob = await runner.run(created.id, {

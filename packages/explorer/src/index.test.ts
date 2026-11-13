@@ -21,9 +21,12 @@ import type { Browser, BrowserContext, Page as PlaywrightPage } from "playwright
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   BrowserSession,
+  CAPTURE_PHASE_ID,
   EXPLORER_PHASE_ID,
   INTAKE_PHASE_ID,
   type IntakeCheckpoint,
+  capturePhase,
+  createCapturePhase,
   createIntakePhase,
   detectRenderingMode,
   detectTechSignatures,
@@ -60,6 +63,7 @@ function buildManifest(overrides?: {
   docsUrls?: string[];
   respectRobotsTxt?: boolean;
   captcha?: "handoff" | "abort";
+  networkHar?: boolean;
 }): Manifest {
   const origin = overrides?.url ? new URL(overrides.url).origin : DEMO_ORIGIN;
   return parseManifestObject({
@@ -83,7 +87,7 @@ function buildManifest(overrides?: {
     },
     methods: {
       behavioralUi: true,
-      networkHar: true,
+      networkHar: overrides?.networkHar ?? true,
       publicDocs: true,
       staticBundles: true,
       binaryAnalysis: false,
@@ -364,7 +368,7 @@ describe("@cleanroom/explorer — Fase 1 intake (fetch, sem browser)", () => {
       evidence: evidenceStore,
       phases: [phase],
       logger: createLogger({ level: "silent" }),
-      guardFactory: (m) => createScopeGuard(m, { sleep: async () => undefined }),
+      guardFactory: (m: Manifest) => createScopeGuard(m, { sleep: async () => undefined }),
     });
 
     const finishedJob = await runner.run(created.id, { enabledPhases: ["intake"] });
@@ -649,6 +653,17 @@ describe("@cleanroom/explorer — BrowserSession (unitário + mocks CDP)", () =>
       }),
     ).rejects.toThrowError(BrowserUnavailableError);
     expect(stack3.mockBrowser.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("exporta constantes e fábricas da Fase 3 capture (CAPTURE_PHASE_ID, createCapturePhase, capturePhase)", () => {
+    expect(CAPTURE_PHASE_ID).toBe("capture");
+    expect(capturePhase.id).toBe("capture");
+
+    const manifestWithHar = buildManifest({ networkHar: true });
+    expect(capturePhase.isEnabled?.(manifestWithHar)).toBe(true);
+
+    const manifestWithoutHar = buildManifest({ networkHar: false });
+    expect(capturePhase.isEnabled?.(manifestWithoutHar)).toBe(false);
   });
 });
 

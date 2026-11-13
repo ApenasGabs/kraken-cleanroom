@@ -170,7 +170,7 @@ export function createCliProgram(io?: CliIo): {
         exitCode = 0;
       } catch (err) {
         if (err instanceof ManifestError) {
-          writeErr(`${formatManifestIssues(err.issues)}\n`);
+          writeErr(`${formatManifestIssues((err as ManifestError).issues)}\n`);
         } else {
           const message = err instanceof Error ? err.message : String(err);
           writeErr(`Erro ao gerar manifesto: ${message}\n`);
@@ -207,7 +207,7 @@ export function createCliProgram(io?: CliIo): {
       } catch (err) {
         const issues: ManifestIssueDetail[] =
           err instanceof ManifestError
-            ? [...err.issues]
+            ? [...(err as ManifestError).issues]
             : [
                 {
                   path: "manifest",

@@ -162,6 +162,150 @@ export interface Page<T> {
 }
 
 // ---------------------------------------------------------------------------
+// Network call & HAR contracts (docs/04 Fase 3, docs/05 §2, docs/10 §5)
+// ---------------------------------------------------------------------------
+
+export interface HarHeader {
+  name: string;
+  value: string;
+}
+
+export interface HarCookie {
+  name: string;
+  value: string;
+  path?: string;
+  domain?: string;
+  expires?: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: string;
+}
+
+export interface HarQueryParam {
+  name: string;
+  value: string;
+}
+
+export interface HarPostDataParam {
+  name: string;
+  value?: string;
+  fileName?: string;
+  contentType?: string;
+}
+
+export interface HarPostData {
+  mimeType: string;
+  text?: string;
+  params?: HarPostDataParam[];
+}
+
+export interface HarRequest {
+  method: string;
+  url: string;
+  httpVersion?: string;
+  cookies: HarCookie[];
+  headers: HarHeader[];
+  queryString: HarQueryParam[];
+  postData?: HarPostData;
+  headersSize?: number;
+  bodySize?: number;
+}
+
+export interface HarResponseContent {
+  size: number;
+  compression?: number;
+  mimeType: string;
+  text?: string;
+  encoding?: string;
+}
+
+export interface HarResponse {
+  status: number;
+  statusText?: string;
+  httpVersion?: string;
+  cookies: HarCookie[];
+  headers: HarHeader[];
+  content: HarResponseContent;
+  redirectURL?: string;
+  headersSize?: number;
+  bodySize?: number;
+}
+
+export interface HarEntry {
+  _resourceType?: string;
+  startedDateTime?: string;
+  time?: number;
+  request: HarRequest;
+  response: HarResponse;
+  cache?: Record<string, unknown>;
+  timings?: Record<string, number>;
+  serverIPAddress?: string;
+  connection?: string;
+  pageref?: string;
+}
+
+export interface HarPage {
+  startedDateTime: string;
+  id: string;
+  title?: string;
+  pageTimings?: Record<string, number>;
+}
+
+export interface HarLog {
+  log: {
+    version: string;
+    creator: { name: string; version: string };
+    browser?: { name: string; version?: string };
+    pages?: HarPage[];
+    entries: HarEntry[];
+  };
+}
+
+export interface NetworkCallEvidenceData {
+  method: string;
+  url: string;
+  urlTemplate: string;
+  pathTemplate: string;
+  status: number;
+  statusText?: string;
+  resourceType?: string;
+  reqContentType?: string;
+  resContentType?: string;
+  reqShape?: unknown;
+  resShape?: unknown;
+  reqSizeBytes?: number;
+  resSizeBytes?: number;
+  durationMs?: number;
+  harEntryIndex?: number;
+  timestamp?: string;
+}
+
+export interface PublicScriptInfo {
+  url: string;
+  sha256: string;
+  size: number;
+  hasSourceMap: boolean;
+  sourceMapUrl?: string;
+}
+
+export interface HarSanitizationStats {
+  entriesCount: number;
+  headersRemoved: number;
+  cookiesPurged: number;
+  queryParamsRedacted: number;
+  bodyFieldsRedacted: number;
+  bodiesTruncated: number;
+  scriptsIndexed: number;
+}
+
+export interface SanitizedHarResult {
+  har: HarLog;
+  stats: HarSanitizationStats;
+  apiCalls: NetworkCallEvidenceData[];
+  publicScripts: PublicScriptInfo[];
+}
+
+// ---------------------------------------------------------------------------
 // Job / Phase contracts (docs/02 §4, docs/04, docs/07 §1)
 // ---------------------------------------------------------------------------
 
