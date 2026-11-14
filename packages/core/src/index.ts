@@ -40,6 +40,7 @@ export {
   type HarEntry,
   type HarPage,
   type HarLog,
+  type DetectedAuthScheme,
   type NetworkCallEvidenceData,
   type PublicScriptInfo,
   type HarSanitizationStats,

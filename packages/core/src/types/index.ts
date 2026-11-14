@@ -353,6 +353,8 @@ export interface HarLog {
   };
 }
 
+export type DetectedAuthScheme = "bearer" | "cookie" | "apiKey";
+
 export interface NetworkCallEvidenceData {
   method: string;
   url: string;
@@ -370,6 +372,9 @@ export interface NetworkCallEvidenceData {
   durationMs?: number;
   harEntryIndex?: number;
   timestamp?: string;
+  safeEnumSamples?: Record<string, string[]>;
+  authSchemes?: DetectedAuthScheme[];
+  queryParams?: string[];
 }
 
 export interface PublicScriptInfo {
