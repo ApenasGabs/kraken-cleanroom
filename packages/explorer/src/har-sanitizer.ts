@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
+  DetectedAuthScheme,
   HarEntry,
   HarHeader,
   HarLog,
@@ -18,6 +19,17 @@ import type {
  * form data e corpos JSON/texto (docs/04 Fase 3, docs/10 §5).
  */
 export const SENSITIVE_KEY_REGEX = /token|secret|password|session|key|auth/i;
+
+/**
+ * Chaves seguras elegíveis para retenção de amostras de enums curtos sem risco de PII
+ * (refinamento arquitetural F1-08: status, state, type, kind, role, plan).
+ */
+export const SAFE_ENUM_KEY_REGEX = /^(?:status|state|type|kind|role|plan)$/i;
+
+/**
+ * Padrão estrito para valores seguros de enums curtos (2 a 24 caracteres alfanuméricos/hífen/underscore).
+ */
+export const SAFE_ENUM_VALUE_REGEX = /^[a-z0-9_-]{2,24}$/i;
 
 /**
  * Headers estritamente proibidos em HAR persistido (case-insensitive).
@@ -132,6 +144,86 @@ export function inferJsonShape(value: unknown): unknown {
   }
 
   return "unknown";
+}
+
+/**
+ * Extrai amostras seguras de valores de enum apenas para chaves permitidas
+ * (`status`, `state`, `type`, `kind`, `role`, `plan`) com strings curtas (`^[a-z0-9_-]{2,24}$`).
+ */
+export function extractSafeEnumSamples(
+  value: unknown,
+  target: Record<string, string[]> = {},
+  currentPath = "",
+): Record<string, string[]> {
+  if (value === null || value === undefined) {
+    return target;
+  }
+
+  if (Array.isArray(value)) {
+    const nextPath = currentPath ? `${currentPath}[]` : "[]";
+    for (const item of value) {
+      extractSafeEnumSamples(item, target, nextPath);
+    }
+    return target;
+  }
+
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const [k, v] of Object.entries(obj)) {
+      const propPath = currentPath ? `${currentPath}.${k}` : k;
+      if (
+        typeof v === "string" &&
+        v !== REDACTED_MARKER &&
+        SAFE_ENUM_KEY_REGEX.test(k) &&
+        SAFE_ENUM_VALUE_REGEX.test(v)
+      ) {
+        const keysToRecord = [propPath, k.toLowerCase()];
+        for (const keyName of keysToRecord) {
+          const list = target[keyName] ?? [];
+          if (!list.includes(v)) {
+            list.push(v);
+            target[keyName] = list;
+          }
+        }
+      } else if (typeof v === "object" && v !== null) {
+        extractSafeEnumSamples(v, target, propPath);
+      }
+    }
+  }
+
+  return target;
+}
+
+/**
+ * Detecta esquemas de autenticação (`bearer`, `cookie`, `apiKey`) presentes na entrada HAR
+ * antes que headers e cookies sensíveis sejam removidos na sanitização.
+ */
+export function detectEntryAuthSchemes(entry: HarEntry): DetectedAuthScheme[] {
+  const schemes = new Set<DetectedAuthScheme>();
+
+  for (const h of entry.request?.headers ?? []) {
+    const lowerName = h.name.toLowerCase();
+    const lowerVal = h.value.trim().toLowerCase();
+    if (lowerName === "authorization" && lowerVal.startsWith("bearer")) {
+      schemes.add("bearer");
+    } else if (lowerName === "cookie" && lowerVal.length > 0) {
+      schemes.add("cookie");
+    } else if (lowerName === "x-api-key" || lowerName === "api-key") {
+      schemes.add("apiKey");
+    }
+  }
+
+  for (const h of entry.response?.headers ?? []) {
+    if (h.name.toLowerCase() === "set-cookie" && h.value.trim().length > 0) {
+      schemes.add("cookie");
+    }
+  }
+
+  if ((entry.request?.cookies?.length ?? 0) > 0 || (entry.response?.cookies?.length ?? 0) > 0) {
+    schemes.add("cookie");
+  }
+
+  return Array.from(schemes);
 }
 
 /**
@@ -413,6 +505,27 @@ export function sanitizeHar(
       continue;
     }
 
+    // 0. Captura metadados seguros de auth e query params antes da remoção de headers/cookies
+    const detectedAuthSchemes = detectEntryAuthSchemes(entry);
+    const observedQueryParamNames = new Set<string>();
+    if (Array.isArray(entry.request.queryString)) {
+      for (const q of entry.request.queryString) {
+        if (q.name && !pattern.test(q.name)) {
+          observedQueryParamNames.add(q.name);
+        }
+      }
+    }
+    try {
+      const parsedReqUrl = new URL(entry.request.url);
+      parsedReqUrl.searchParams.forEach((_v, k) => {
+        if (k && !pattern.test(k)) {
+          observedQueryParamNames.add(k);
+        }
+      });
+    } catch {
+      // ignora URL relativa
+    }
+
     // 1. Sanitização da URL e query params
     const sanitizedUrlResult = sanitizeUrlQuery(entry.request.url, pattern);
     entry.request.url = sanitizedUrlResult.url;
@@ -631,12 +744,14 @@ export function sanitizeHar(
     if (isApiRequest(entry)) {
       const { urlTemplate, pathTemplate } = normalizeUrlTemplate(entry.request.url);
 
-      // Inferência recursiva de shape do request
+      // Inferência recursiva de shape do request e coleta de enums seguros
       let reqShape: unknown;
+      const safeEnums: Record<string, string[]> = {};
       if (entry.request.postData?.text) {
         try {
           const parsed = JSON.parse(entry.request.postData.text);
           reqShape = inferJsonShape(parsed);
+          extractSafeEnumSamples(parsed, safeEnums);
         } catch {
           if (entry.request.postData.params && entry.request.postData.params.length > 0) {
             const formShape: Record<string, string> = {};
@@ -648,12 +763,13 @@ export function sanitizeHar(
         }
       }
 
-      // Inferência recursiva de shape da response
+      // Inferência recursiva de shape da response e coleta de enums seguros
       let resShape: unknown;
       if (entry.response.content?.text) {
         try {
           const parsed = JSON.parse(entry.response.content.text);
           resShape = inferJsonShape(parsed);
+          extractSafeEnumSamples(parsed, safeEnums);
         } catch {
           // ignora
         }
@@ -665,6 +781,7 @@ export function sanitizeHar(
       const resContentType =
         entry.response.content?.mimeType ??
         entry.response.headers.find((h) => h.name.toLowerCase() === "content-type")?.value;
+      const queryParamsList = Array.from(observedQueryParamNames);
 
       apiCalls.push({
         method: entry.request.method.toUpperCase(),
@@ -678,6 +795,9 @@ export function sanitizeHar(
         ...(resContentType ? { resContentType } : {}),
         ...(reqShape !== undefined ? { reqShape } : {}),
         ...(resShape !== undefined ? { resShape } : {}),
+        ...(Object.keys(safeEnums).length > 0 ? { safeEnumSamples: safeEnums } : {}),
+        ...(detectedAuthSchemes.length > 0 ? { authSchemes: detectedAuthSchemes } : {}),
+        ...(queryParamsList.length > 0 ? { queryParams: queryParamsList } : {}),
         ...(entry.request.bodySize !== undefined && entry.request.bodySize >= 0
           ? { reqSizeBytes: entry.request.bodySize }
           : {}),

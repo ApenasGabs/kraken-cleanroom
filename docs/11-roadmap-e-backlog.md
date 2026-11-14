@@ -84,7 +84,7 @@ flowchart LR
 - `recordHar`; sanitização de `04` Fase 3; shapes sem valores.
 - **Aceite:** teste unitário de sanitização com HAR fixture contendo cookies/tokens (nenhum sobrevive); evidências `network_call` com `urlTemplate`.
 
-### [ ] F1-08 Analyzer: `harToOpenApi` (M) - Dep: F1-07
+### [x] F1-08 Analyzer: `harToOpenApi` (M) - Dep: F1-07
 - Templating de path, merge de shapes, enums, paginação, auth, `x-cleanroom-evidence`.
 - **Aceite:** a partir de HAR fixture da demo-app gera OpenAPI 3.1 válido (validar com `@apidevtools/swagger-parser`), com `GET /api/projects` paginado e enum `status`.
 

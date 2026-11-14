@@ -105,11 +105,15 @@ export {
 
 export {
   SENSITIVE_KEY_REGEX,
+  SAFE_ENUM_KEY_REGEX,
+  SAFE_ENUM_VALUE_REGEX,
   FORBIDDEN_HEADERS,
   MAX_BODY_BYTES,
   REDACTED_MARKER,
   TRUNCATED_MARKER,
   inferJsonShape,
+  extractSafeEnumSamples,
+  detectEntryAuthSchemes,
   normalizeUrlTemplate,
   isApiRequest,
   sanitizeHar,
