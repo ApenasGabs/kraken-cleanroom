@@ -27,7 +27,11 @@ import {
   validateManifest,
 } from "@cleanroom/core";
 import type { CdpConnector } from "@cleanroom/explorer";
-import { MCP_SERVER_NAME } from "@cleanroom/mcp-server";
+import {
+  MCP_SERVER_NAME,
+  type StartMcpStdioServerOptions,
+  startMcpStdioServer,
+} from "@cleanroom/mcp-server";
 import { Command, CommanderError } from "commander";
 import {
   type CdpConnectionProbe,
@@ -126,6 +130,7 @@ export interface CliIo {
       ) => void | Promise<void>)
     | undefined;
   openFile?: ((filePath: string) => void | Promise<void>) | undefined;
+  startMcpStdio?: ((options: StartMcpStdioServerOptions) => Promise<void>) | undefined;
   watchPollMs?: number | undefined;
   runPollMs?: number | undefined;
 }
@@ -147,6 +152,7 @@ export function formatHelpText(): string {
     "  cancel <jobId>       Cancel a running or paused job",
     "  report <jobId>       Output generated report (md or json)",
     "  evidence <jobId>     List evidence collected for a job",
+    "  serve                Start the cleanroom MCP server (--mcp-stdio)",
     "",
     "Options:",
     "  -h, --help           Display this help message",
@@ -864,6 +870,62 @@ export function createCliProgram(io?: CliIo): {
         }
       },
     );
+
+  program
+    .command("serve")
+    .description("Inicia o servidor MCP do kraken-cleanroom (--mcp-stdio)")
+    .option("--mcp-stdio", "Executa o servidor MCP via transporte stdio (JSON-RPC)")
+    .option("--http", "Transporte HTTP Streamable / REST (reservado para Fase 2)")
+    .option("--port <port>", "Porta HTTP (Fase 2)", "4870")
+    .action(async (options: { mcpStdio?: boolean; http?: boolean; port?: string }) => {
+      if (options.http) {
+        writeErr(
+          "Erro: modo --http será implementado na Fase 2 (F2-01/F2-02). Use --mcp-stdio na Fase 1.\n",
+        );
+        exitCode = 1;
+        return;
+      }
+
+      if (!options.mcpStdio) {
+        writeErr("Erro: informe --mcp-stdio para iniciar o servidor MCP em modo stdio.\n");
+        exitCode = 1;
+        return;
+      }
+
+      try {
+        const stdioOptions: StartMcpStdioServerOptions = {
+          env,
+          cwd,
+          fetch: io?.fetch,
+          cdpConnector: io?.cdpConnector,
+          llmClient: io?.llmClient,
+          timeoutMs: io?.timeoutMs,
+        };
+
+        if (io?.startMcpStdio) {
+          await io.startMcpStdio(stdioOptions);
+          exitCode = 0;
+          return;
+        }
+
+        const started = await startMcpStdioServer(stdioOptions);
+        const onSignal = (): void => {
+          void started.close();
+        };
+        process.once("SIGINT", onSignal);
+        process.once("SIGTERM", onSignal);
+        try {
+          await started.closed;
+        } finally {
+          process.off("SIGINT", onSignal);
+          process.off("SIGTERM", onSignal);
+        }
+        exitCode = 0;
+      } catch (err) {
+        writeErr(`Erro ao iniciar servidor MCP stdio: ${formatErrorLine(err)}\n`);
+        exitCode = 1;
+      }
+    });
 
   // Comando interno usado pelo --detach para executar o job em processo destacado.
   program

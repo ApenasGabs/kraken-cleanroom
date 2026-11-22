@@ -112,7 +112,7 @@ flowchart LR
 - Conforme `07` §3, com códigos de saída.
 - **Aceite:** `cleanroom run examples/demo-app.cleanroom.yaml` completa contra demo-app local com fake LLM (`CLEANROOM_LLM_PROVIDER=fake`).
 
-### [ ] F1-15 MCP server (stdio) (M) - Dep: F1-14
+### [x] F1-15 MCP server (stdio) (M) - Dep: F1-14
 - Ferramentas de `07` §2 (exceto handoff); testes com cliente MCP in-memory do SDK.
 - **Aceite:** listar ferramentas, iniciar job na demo-app e obter relatório via MCP em teste.
 

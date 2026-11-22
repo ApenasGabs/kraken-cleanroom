@@ -1,29 +1,13 @@
-import { resolve } from "node:path";
-import { createAnalyzePhase } from "@cleanroom/analyzers";
 import {
   type CleanroomConfig,
   type CleanroomJobService,
   DEFAULT_PHASE_ORDER,
   type LlmClient,
-  type Phase,
   type PhaseId,
   type SqliteDatabase,
-  createJobService,
-  createLlmClientFromConfig,
-  loadConfig,
-  openDatabase,
 } from "@cleanroom/core";
-import {
-  type CdpConnector,
-  createCapturePhase,
-  createExplorePhase,
-  createIntakePhase,
-} from "@cleanroom/explorer";
-import {
-  createReportPhase,
-  createSynthesizePhase,
-  createSynthesizerFakeLlmClient,
-} from "@cleanroom/synthesizer";
+import type { CdpConnector } from "@cleanroom/explorer";
+import { createMcpJobService, createPhase1Pipeline } from "@cleanroom/mcp-server";
 
 export interface CliPipelineOptions {
   env?: Record<string, string | undefined> | undefined;
@@ -44,90 +28,21 @@ export interface CliJobServiceHandle {
   close: () => void;
 }
 
-function needsRealLlm(enabledPhases?: readonly PhaseId[] | undefined): boolean {
-  if (!enabledPhases) {
-    return true;
-  }
-  return enabledPhases.includes("synthesize") || enabledPhases.includes("report");
-}
-
-function resolveLlmClient(config: CleanroomConfig, options: CliPipelineOptions): LlmClient {
-  if (options.llmClient !== undefined) {
-    return options.llmClient;
-  }
-  if (config.llmProvider === "fake" || !needsRealLlm(options.enabledPhases)) {
-    return createSynthesizerFakeLlmClient();
-  }
-  return createLlmClientFromConfig(config);
-}
-
-/**
- * Monta as fases reais da Fase 1 (`intake`, `explore`, `capture`, `analyze`, `synthesize`, `report`).
- */
-export function createPhase1Pipeline(
-  config: CleanroomConfig,
-  options?: Pick<CliPipelineOptions, "fetch" | "cdpConnector">,
-): Phase[] {
-  const fetchFn = options?.fetch;
-  const intake = createIntakePhase(fetchFn ? { fetch: fetchFn } : undefined);
-
-  const exploreSessionOpts =
-    config.browserWsEndpoint !== undefined || options?.cdpConnector !== undefined
-      ? {
-          wsEndpoint: config.browserWsEndpoint ?? "ws://local-fetch-adapter:9222",
-          ...(options?.cdpConnector !== undefined ? { cdpConnector: options.cdpConnector } : {}),
-        }
-      : undefined;
-
-  const explore = createExplorePhase({
-    ...(fetchFn ? { fetch: fetchFn } : {}),
-    ...(exploreSessionOpts ? { sessionOptions: exploreSessionOpts } : {}),
-  });
-
-  const capture = createCapturePhase();
-  const analyze = createAnalyzePhase(fetchFn ? { fetch: fetchFn } : undefined);
-  const synthesize = createSynthesizePhase();
-  const report = createReportPhase();
-
-  return [intake, explore, capture, analyze, synthesize, report];
-}
+export { createPhase1Pipeline };
 
 /**
  * Cria o `CleanroomJobService` conectado ao SQLite em `CLEANROOM_DATA_DIR` e às fases reais da Fase 1.
  */
 export function createCliJobService(options: CliPipelineOptions = {}): CliJobServiceHandle {
-  const env = options.env ?? process.env;
-  const cwd = options.cwd ?? process.cwd();
-  const config = loadConfig(env, {
-    requireBrowser: false,
-    requireLlm: false,
-  });
-
-  const dataDir = resolve(cwd, config.dataDir);
-  const db = openDatabase({ dataDir });
-  const llm = resolveLlmClient(config, options);
-  const phases = createPhase1Pipeline(config, {
-    fetch: options.fetch,
-    cdpConnector: options.cdpConnector,
-  });
-
-  const service = createJobService({
-    db,
-    dataDir,
-    phases,
-    llm,
-    timeoutMs: options.timeoutMs,
-    now: options.now,
-  });
-
+  const handle = createMcpJobService(options);
   return {
-    service,
-    db,
-    config,
-    dataDir,
+    service: handle.service,
+    db: handle.db,
+    config: handle.config,
+    dataDir: handle.dataDir,
     close: () => {
-      if (db.open) {
-        db.close();
+      if (handle.db.open) {
+        handle.db.close();
       }
     },
   };
