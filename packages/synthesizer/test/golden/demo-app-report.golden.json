@@ -1,0 +1,317 @@
+{
+  "version": 1,
+  "job": {
+    "id": "job_demo_golden_01",
+    "name": "demo-app-golden",
+    "finishedAt": "2026-11-22T04:00:00.000Z",
+    "durationMin": 1.5,
+    "llmTokensIn": 500,
+    "llmTokensOut": 200,
+    "phases": ["intake", "explore", "capture", "analyze", "synthesize", "report"]
+  },
+  "target": {
+    "url": "http://localhost:4173",
+    "type": "web-ssr"
+  },
+  "manifest": {
+    "ownership": "own",
+    "methodsEnabled": ["behavioralUi", "networkHar", "publicDocs", "staticBundles"]
+  },
+  "product": {
+    "name": "Demo App",
+    "valueProposition": "Permite cadastrar, acompanhar e arquivar projetos conforme cotas do plano contratado.",
+    "personas": [
+      {
+        "name": "Usuário Free",
+        "goal": "Gerenciar até 3 projetos não arquivados"
+      },
+      {
+        "name": "Usuário Pro",
+        "goal": "Criar projetos ilimitados e usar pro_export"
+      }
+    ]
+  },
+  "summary": {
+    "narrative": "Aplicação web voltada à gestão de projetos com validações estritas de entrada, máquina de estados de ciclo de vida e limites por plano de assinatura.",
+    "highlights": [
+      {
+        "text": "Formulário de projetos valida tamanho do nome e orçamento não-negativo",
+        "ruleIds": ["BR-002", "BR-003"]
+      },
+      {
+        "text": "Plano Free limita projetos ativos enquanto o Pro libera criação ilimitada",
+        "ruleIds": ["BR-001"]
+      }
+    ]
+  },
+  "pricing": {
+    "plans": [
+      {
+        "name": "Free",
+        "price": "R$ 0/mês",
+        "limits": "Até 3 projetos",
+        "evidenceIds": ["ev_demo_07_pricing"]
+      },
+      {
+        "name": "Pro",
+        "price": "R$ 49/mês",
+        "limits": "Projetos ilimitados",
+        "evidenceIds": ["ev_demo_07_pricing"]
+      }
+    ]
+  },
+  "coverage": {
+    "pagesVisited": 2,
+    "endpoints": 2,
+    "docSections": 1,
+    "limitsHit": "1 fora de escopo, 1 destrutiva(s) evitada(s)"
+  },
+  "stats": {
+    "rules": {
+      "total": 3,
+      "observed": 2,
+      "inferred": 0,
+      "hypothesis": 1
+    }
+  },
+  "modules": [
+    {
+      "name": "Projetos",
+      "summary": "Gerencia listagem paginada, criação validada e transições de status.",
+      "features": [
+        {
+          "name": "Criação validada",
+          "description": "Valida nome (3-60) e orçamento não-negativo no servidor.",
+          "confidence": "observed",
+          "evidenceIds": ["ev_demo_04_probe_name", "ev_demo_05_probe_budget"]
+        }
+      ],
+      "screenshot": "4353a1de7e0dcc4e87350e22d5c9ee9f3e70e8ce9c31533ec991bee8870c4814.png",
+      "evidenceIds": [
+        "ev_demo_02_state",
+        "ev_demo_03_shot",
+        "ev_demo_04_probe_name",
+        "ev_demo_05_probe_budget",
+        "ev_demo_06_net_list"
+      ]
+    },
+    {
+      "name": "Faturamento e Planos",
+      "summary": "Define cotas de projetos por plano e habilita exportação Pro.",
+      "features": [
+        {
+          "name": "Cota Free vs Pro",
+          "description": "Free permite 3 projetos; Pro remove o teto e libera pro_export.",
+          "confidence": "hypothesis",
+          "evidenceIds": ["ev_demo_07_pricing", "ev_demo_09_flag"]
+        }
+      ],
+      "evidenceIds": ["ev_demo_07_pricing", "ev_demo_09_flag"]
+    }
+  ],
+  "domain": {
+    "erMermaid": "erDiagram\n  Project {\n    string name \"required\"\n    number budget \"required\"\n    enum_draft_active_archived status \"required - enum(draft,active,archived)\"\n  }\n  Plan {\n    enum_free_pro tier \"required - enum(free,pro)\"\n    number_or_unlimited projectLimit \"required - number|unlimited\"\n  }\n  Project ||--o{ Plan : \"1-n\"",
+    "entities": [
+      {
+        "name": "Project",
+        "attributes": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "evidenceIds": ["ev_demo_04_probe_name"]
+          },
+          {
+            "name": "budget",
+            "type": "number",
+            "required": true,
+            "evidenceIds": ["ev_demo_05_probe_budget"]
+          },
+          {
+            "name": "status",
+            "type": "enum(draft,active,archived)",
+            "required": true,
+            "evidenceIds": ["ev_demo_06_net_list"]
+          }
+        ],
+        "relations": [
+          {
+            "to": "Plan",
+            "kind": "1-n",
+            "evidenceIds": ["ev_demo_07_pricing"]
+          }
+        ]
+      },
+      {
+        "name": "Plan",
+        "attributes": [
+          {
+            "name": "tier",
+            "type": "enum(free,pro)",
+            "required": true,
+            "evidenceIds": ["ev_demo_07_pricing"]
+          },
+          {
+            "name": "projectLimit",
+            "type": "number|unlimited",
+            "required": true,
+            "evidenceIds": ["ev_demo_07_pricing"]
+          }
+        ],
+        "relations": []
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "BR-001",
+      "module": "Faturamento e Planos",
+      "title": "Limite do Plano Free (3 projetos não arquivados)",
+      "trigger": "Ao tentar criar um projeto no plano Free",
+      "condition": "Conta já possui 3 projetos em draft ou active",
+      "effect": "Criação é bloqueada com HTTP 422",
+      "confidence": "hypothesis",
+      "findingIds": ["fd_demo_02"],
+      "evidenceIds": ["ev_demo_07_pricing"]
+    },
+    {
+      "id": "BR-002",
+      "module": "Projetos",
+      "title": "Validação de tamanho do nome (3 a 60 caracteres)",
+      "trigger": "Ao submeter criação de projeto",
+      "condition": "Nome vazio ou fora da faixa de 3 a 60 caracteres",
+      "effect": "Requisição rejeitada com HTTP 400 NAME_LENGTH_INVALID",
+      "confidence": "observed",
+      "findingIds": ["fd_demo_01"],
+      "evidenceIds": ["ev_demo_04_probe_name", "ev_demo_08_doc"]
+    },
+    {
+      "id": "BR-003",
+      "module": "Projetos",
+      "title": "Orçamento não-negativo (budget >= 0)",
+      "trigger": "Ao submeter criação de projeto",
+      "condition": "Orçamento menor que zero",
+      "effect": "Requisição rejeitada com HTTP 400 BUDGET_MIN_ZERO",
+      "confidence": "observed",
+      "findingIds": [],
+      "evidenceIds": ["ev_demo_05_probe_budget"]
+    }
+  ],
+  "stateMachines": [
+    {
+      "entity": "Project",
+      "states": ["draft", "active", "archived"],
+      "initialState": "draft",
+      "terminalStates": ["archived"],
+      "transitions": [
+        {
+          "from": "draft",
+          "to": "active",
+          "trigger": "Ativar projeto",
+          "evidenceIds": ["ev_demo_06_net_list"]
+        },
+        {
+          "from": "active",
+          "to": "archived",
+          "trigger": "Arquivar projeto",
+          "evidenceIds": ["ev_demo_06_net_list"]
+        }
+      ],
+      "evidenceIds": ["ev_demo_06_net_list"],
+      "mermaid": "stateDiagram-v2\n  [*] --> draft\n  draft --> active : Ativar projeto\n  active --> archived : Arquivar projeto\n  archived --> [*]"
+    }
+  ],
+  "flows": [
+    {
+      "name": "Criação e validação de projeto",
+      "module": "Projetos",
+      "description": "Usuário preenche o formulário de novo projeto e recebe validação imediata.",
+      "steps": [
+        {
+          "order": 1,
+          "actor": "Usuário",
+          "action": "Preenche nome e orçamento em /projects/new",
+          "outcome": "Sistema valida tamanho do nome e orçamento não-negativo",
+          "evidenceIds": ["ev_demo_04_probe_name", "ev_demo_05_probe_budget"]
+        },
+        {
+          "order": 2,
+          "actor": "Usuário",
+          "action": "Consulta listagem paginada de projetos",
+          "outcome": "API retorna página com status e metadados",
+          "evidenceIds": ["ev_demo_06_net_list"]
+        }
+      ],
+      "evidenceIds": ["ev_demo_04_probe_name", "ev_demo_06_net_list"],
+      "mermaid": "sequenceDiagram\n  participant Usuario as Usuário\n  participant System as Aplicacao\n  Usuario->>System: Preenche nome e orçamento em /projects/new\n  System-->>Usuario: Sistema valida tamanho do nome e orçamento não-negativo\n  Usuario->>System: Consulta listagem paginada de projetos\n  System-->>Usuario: API retorna página com status e metadados"
+    }
+  ],
+  "api": {
+    "openApiPath": "../analysis/openapi.yaml",
+    "operations": [
+      {
+        "method": "GET",
+        "path": "/api/projects",
+        "purpose": "Lista projetos paginados com pageSize padrão 2",
+        "auth": "público",
+        "evidenceIds": ["ev_demo_06_net_list"]
+      },
+      {
+        "method": "POST",
+        "path": "/api/projects",
+        "purpose": "Cria projeto após validar nome, orçamento e cota",
+        "auth": "público",
+        "evidenceIds": ["ev_demo_04_probe_name"]
+      }
+    ]
+  },
+  "permissions": {
+    "matrixMarkdown": "| Papel / Plano | Permissões observadas | Restrições | Evidência |\n|---|---|---|---|\n| Usuário Free | Criar até 3 projetos | Sem acesso a /admin | ev_demo_07_pricing, ev_demo_01_robots |\n| Usuário Pro | Projetos ilimitados e pro_export | Sem acesso a /admin | ev_demo_07_pricing, ev_demo_09_flag |"
+  },
+  "validations": [
+    {
+      "form": "/projects/new",
+      "field": "name",
+      "rule": "NAME_LENGTH_INVALID",
+      "messageSummary": "O nome do projeto deve ter entre 3 e 60 caracteres.",
+      "evidenceIds": ["ev_demo_04_probe_name"]
+    },
+    {
+      "form": "/projects/new",
+      "field": "budget",
+      "rule": "BUDGET_MIN_ZERO",
+      "messageSummary": "O orçamento deve ser maior ou igual a 0.",
+      "evidenceIds": ["ev_demo_05_probe_budget"]
+    }
+  ],
+  "integrations": [
+    {
+      "name": "pro_export",
+      "category": "feature_flag",
+      "signal": "Feature flag pro_export detectada no bundle público",
+      "evidenceIds": ["ev_demo_09_flag"]
+    }
+  ],
+  "features": [],
+  "gaps": [
+    {
+      "kind": "hypothesis",
+      "text": "BR-001 (Limite do Plano Free (3 projetos não arquivados)): inferida apenas por documentação/bundle, sem confirmação na UI/rede",
+      "evidenceIds": ["ev_demo_07_pricing"]
+    },
+    {
+      "kind": "hypothesis",
+      "text": "Faturamento e Planos: Plano Free restringe a conta a 3 projetos ativos ou em rascunho.",
+      "evidenceIds": ["ev_demo_07_pricing"]
+    }
+  ],
+  "assets": ["4353a1de7e0dcc4e87350e22d5c9ee9f3e70e8ce9c31533ec991bee8870c4814.png"],
+  "quality": {
+    "ok": true,
+    "issues": [],
+    "checkedRules": 3,
+    "checkedBlobs": 1,
+    "checkedAssets": 1,
+    "checkedMermaidBlocks": 6
+  }
+}

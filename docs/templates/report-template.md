@@ -22,6 +22,8 @@ Regra: nenhum trecho de código, CSS ou texto literal longo do alvo.
 **Principais achados**
 {{#each summary.highlights}}
 - {{this.text}} ({{this.ruleIds}})
+{{else}}
+- _Nenhum destaque consolidado nesta execução._
 {{/each}}
 
 ## 2. Visão do produto
@@ -31,6 +33,8 @@ Regra: nenhum trecho de código, CSS ou texto literal longo do alvo.
 ### Personas
 {{#each product.personas}}
 - **{{this.name}}**: {{this.goal}}
+{{else}}
+- _Nenhuma persona específica identificada._
 {{/each}}
 
 ### Planos e limites
@@ -38,6 +42,8 @@ Regra: nenhum trecho de código, CSS ou texto literal longo do alvo.
 |---|---|---|---|
 {{#each pricing.plans}}
 | {{this.name}} | {{this.price}} | {{this.limits}} | {{this.evidenceIds}} |
+{{else}}
+| - | - | _Nenhum plano de preços observado_ | - |
 {{/each}}
 
 ## 3. Mapa funcional
@@ -92,6 +98,8 @@ Regra: nenhum trecho de código, CSS ou texto literal longo do alvo.
 ```mermaid
 {{this.mermaid}}
 ```
+{{else}}
+_Nenhuma máquina de estados inferida nesta execução._
 {{/each}}
 
 ## 7. Fluxos principais
@@ -102,6 +110,8 @@ Regra: nenhum trecho de código, CSS ou texto literal longo do alvo.
 ```mermaid
 {{this.mermaid}}
 ```
+{{else}}
+_Nenhum fluxo principal inferido nesta execução._
 {{/each}}
 
 ## 8. Contrato de API inferido
@@ -112,6 +122,8 @@ Arquivo completo: [`openapi.yaml`](../analysis/openapi.yaml)
 |---|---|---|---|---|
 {{#each api.operations}}
 | {{this.method}} | `{{this.path}}` | {{this.purpose}} | {{this.auth}} | {{this.evidenceIds}} |
+{{else}}
+| - | `-` | _Nenhuma operação de API observada_ | - | - |
 {{/each}}
 
 ## 9. Papéis e permissões
@@ -124,24 +136,32 @@ Arquivo completo: [`openapi.yaml`](../analysis/openapi.yaml)
 |---|---|---|---|---|
 {{#each validations}}
 | {{this.form}} | {{this.field}} | {{this.rule}} | {{this.messageSummary}} | {{this.evidenceIds}} |
+{{else}}
+| - | - | - | _Nenhuma validação observada_ | - |
 {{/each}}
 
 ## 11. Integrações externas detectadas
 
 {{#each integrations}}
 - **{{this.name}}** ({{this.category}}): {{this.signal}} [{{this.evidenceIds}}]
+{{else}}
+_Nenhuma integração externa detectada._
 {{/each}}
 
 ## 12. Critérios de aceite
 
 {{#each features}}
 - [`{{this.file}}`](features/{{this.file}}): {{this.scenarioCount}} cenários
+{{else}}
+_Nenhum arquivo `.feature` gerado neste job (geração Gherkin prevista para a Fase 3)._
 {{/each}}
 
 ## 13. Lacunas, hipóteses e contradições
 
 {{#each gaps}}
 - **{{this.kind}}**: {{this.text}} [{{this.evidenceIds}}]
+{{else}}
+_Nenhuma lacuna, hipótese ou contradição pendente registrada._
 {{/each}}
 
 ## Apêndice A: cobertura e metodologia

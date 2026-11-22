@@ -103,11 +103,52 @@ export const InferBehaviorOutputSchema = z.object({
   flows: z.array(RawFlowSchema).default([]),
 });
 
+export const ReportNarrativeHighlightSchema = z.object({
+  text: z.string().min(1),
+  ruleIds: z.array(z.string()).default([]),
+});
+
+export const ReportNarrativePersonaSchema = z.object({
+  name: z.string().min(1),
+  goal: z.string().min(1),
+});
+
+export const ReportNarrativeModuleFeatureSchema = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  confidence: z.enum(CONFIDENCE_LEVELS),
+  evidenceIds: z.array(z.string()).default([]),
+});
+
+export const ReportNarrativeModuleSummarySchema = z.object({
+  moduleName: z.string().min(1),
+  summary: z.string().min(1),
+  features: z.array(ReportNarrativeModuleFeatureSchema).default([]),
+});
+
+export const ReportNarrativeApiPurposeSchema = z.object({
+  method: z.string().min(1),
+  path: z.string().min(1),
+  purpose: z.string().min(1),
+});
+
+export const ReportNarrativeOutputSchema = z.object({
+  productName: z.string().min(1),
+  executiveNarrative: z.string().min(1),
+  highlights: z.array(ReportNarrativeHighlightSchema).default([]),
+  valueProposition: z.string().min(1),
+  personas: z.array(ReportNarrativePersonaSchema).default([]),
+  moduleSummaries: z.array(ReportNarrativeModuleSummarySchema).default([]),
+  permissionsMatrixMarkdown: z.string().min(1),
+  apiPurposes: z.array(ReportNarrativeApiPurposeSchema).default([]),
+});
+
 export type ClusterModulesOutput = z.infer<typeof ClusterModulesOutputSchema>;
 export type ExtractFindingsOutput = z.infer<typeof ExtractFindingsOutputSchema>;
 export type ConsolidateRulesOutput = z.infer<typeof ConsolidateRulesOutputSchema>;
 export type InferDomainOutput = z.infer<typeof InferDomainOutputSchema>;
 export type InferBehaviorOutput = z.infer<typeof InferBehaviorOutputSchema>;
+export type ReportNarrativeOutput = z.infer<typeof ReportNarrativeOutputSchema>;
 
 interface ZodDefLike {
   typeName?: string;
