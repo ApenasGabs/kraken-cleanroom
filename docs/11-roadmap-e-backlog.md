@@ -92,7 +92,7 @@ flowchart LR
 - Readability + turndown; segmentação; `pricing_plan` estruturado.
 - **Aceite:** demo-app `/help` gera 3 `doc_section`; `/pricing` gera 2 planos com limite de projetos.
 
-### [ ] F1-10 Analyzer: `bundleAnalyzer` (M) - Dep: F1-07
+### [x] F1-10 Analyzer: `bundleAnalyzer` (M) - Dep: F1-07
 - Rotas, strings, flags, endpoints literais; sem armazenar bundle bruto.
 - **Aceite:** extrai rotas e mensagens de erro da demo-app; teste garante que nenhum blob > 4 KB de JS é persistido.
 
