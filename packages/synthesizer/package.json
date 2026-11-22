@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cleanroom/core": "workspace:*"
+    "@cleanroom/core": "workspace:*",
+    "zod": "^3.24.2"
   }
 }

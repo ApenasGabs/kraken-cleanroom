@@ -156,6 +156,86 @@ export interface DomainEntity {
   relations: DomainRelation[];
 }
 
+// ---------------------------------------------------------------------------
+// Synthesis & report contracts (docs/02 §5, docs/04 Fase 5, docs/05 §2/§6)
+// ---------------------------------------------------------------------------
+
+export interface SynthesizedModule {
+  name: string;
+  description: string;
+  stateIds: string[];
+  endpoints: string[];
+  docSections: string[];
+  evidenceIds: string[];
+}
+
+export interface StateMachineTransition {
+  from: string;
+  to: string;
+  trigger: string;
+  guard?: string;
+  evidenceIds: string[];
+}
+
+export interface StateMachineSpec {
+  entity: string;
+  states: string[];
+  initialState?: string;
+  terminalStates?: string[];
+  transitions: StateMachineTransition[];
+  evidenceIds: string[];
+}
+
+export interface FlowStep {
+  order: number;
+  actor: string;
+  action: string;
+  outcome: string;
+  evidenceIds: string[];
+}
+
+export interface FlowSpec {
+  name: string;
+  module: string;
+  description: string;
+  steps: FlowStep[];
+  evidenceIds: string[];
+}
+
+export interface SynthesizedFeatureStub {
+  module: string;
+  file: string;
+  scenarioCount: number;
+}
+
+export interface SynthesisStats extends Record<string, number> {
+  modules: number;
+  findings: number;
+  rules: number;
+  entities: number;
+  stateMachines: number;
+  flows: number;
+  unsupportedClaimsDiscarded: number;
+  totalClaimsEvaluated: number;
+  discardRatePercent: number;
+}
+
+export interface FindingsDocument {
+  version: 1;
+  jobId: string;
+  generatedAt: string;
+  modules: SynthesizedModule[];
+  findings: Finding[];
+  rules: BusinessRule[];
+  domain: {
+    entities: DomainEntity[];
+  };
+  stateMachines: StateMachineSpec[];
+  flows: FlowSpec[];
+  features: SynthesizedFeatureStub[];
+  stats: SynthesisStats;
+}
+
 export interface Page<T> {
   items: T[];
   nextCursor?: string;

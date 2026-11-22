@@ -426,4 +426,81 @@ describe("EvidenceStore", () => {
       db.close();
     }
   });
+
+  it("checks existing evidence IDs, lists all, deduplicates findings, and persists rules", () => {
+    const db = openDatabase(tempDir);
+    try {
+      const store = new EvidenceStore({ db, dataDir: tempDir });
+      const jobId = "job_synth_store";
+      const ev1 = store.put({
+        jobId,
+        kind: "form_probe",
+        phase: "explore",
+        summary: "Validação de nome obrigatório",
+        data: { field: "name" },
+      });
+      const ev2 = store.put({
+        jobId,
+        kind: "network_call",
+        phase: "capture",
+        summary: "POST /api/projects retorna 400",
+        data: { status: 400 },
+      });
+
+      expect(store.has(jobId, ev1.id)).toBe(true);
+      expect(store.has(jobId, "ev_nonexistent")).toBe(false);
+
+      const existing = store.filterExistingIds(jobId, [ev1.id, "ev_fake", ev2.id, ev1.id]);
+      expect(existing).toEqual(new Set([ev1.id, ev2.id]));
+      expect(store.listAll(jobId).map((e) => e.id)).toEqual([ev1.id, ev2.id]);
+
+      // Put finding + duplicate by fingerprint merges evidenceIds and upgrades confidence
+      const firstFinding = store.putFinding({
+        id: "fd_01",
+        jobId,
+        module: "Projetos",
+        category: "validation",
+        statement: "O nome do projeto deve ter entre 3 e 60 caracteres.",
+        confidence: "inferred",
+        evidenceIds: [ev1.id],
+        fingerprint: "fp_name_length",
+      });
+      expect(firstFinding.deduplicated).toBe(false);
+
+      const dupFinding = store.putFinding({
+        id: "fd_02",
+        jobId,
+        module: "Projetos",
+        category: "validation",
+        statement: "O nome do projeto deve ter entre 3 e 60 caracteres.",
+        confidence: "observed",
+        evidenceIds: [ev2.id],
+        fingerprint: "fp_name_length",
+      });
+      expect(dupFinding.deduplicated).toBe(true);
+      expect(dupFinding.finding.id).toBe("fd_01");
+      expect(dupFinding.finding.confidence).toBe("observed");
+      expect(dupFinding.finding.evidenceIds).toEqual([ev1.id, ev2.id]);
+
+      expect(store.listFindings(jobId, { module: "Projetos" })).toHaveLength(1);
+
+      store.saveRules(jobId, [
+        {
+          id: "BR-001",
+          module: "Projetos",
+          title: "Nome obrigatório",
+          trigger: "Ao criar projeto",
+          condition: "Nome vazio ou fora de 3-60 caracteres",
+          effect: "Rejeita com HTTP 400/422",
+          confidence: "observed",
+          findingIds: ["fd_01"],
+          evidenceIds: [ev1.id, ev2.id],
+        },
+      ]);
+      expect(store.listRules(jobId)).toHaveLength(1);
+      expect(store.listRules(jobId, { confidence: "observed" })[0]?.id).toBe("BR-001");
+    } finally {
+      db.close();
+    }
+  });
 });

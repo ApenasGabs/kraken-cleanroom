@@ -100,7 +100,7 @@ flowchart LR
 - Interface `generateObject<T>(schema: ZodType<T>, messages, opts)`, retry em saída inválida, contagem de tokens, provedores `openai-compatible` e `gemini` no MVP (outros depois); fake determinístico.
 - **Aceite:** testes com fake; teste de retry; tokens contabilizados no job.
 
-### [ ] F1-12 Synthesizer: módulos, achados, regras, domínio (L) - Dep: F1-11, F1-01
+### [x] F1-12 Synthesizer: módulos, achados, regras, domínio (L) - Dep: F1-11, F1-01
 - Pipeline de `04` Fase 5 (etapas 1-5); prompts em `packages/synthesizer/prompts/`; descarte de itens sem evidência; ids `BR-NNN` estáveis.
 - **Aceite:** com `FakeLlmClient` e evidências da demo-app, produz regras que cobrem ≥ 70% de `EXPECTED.md`; teste de descarte de claim sem evidência.
 
