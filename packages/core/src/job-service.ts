@@ -38,6 +38,8 @@ export type ValidateManifestServiceResult =
 
 export interface StartJobOptions {
   enabledPhases?: readonly PhaseId[] | undefined;
+  /** Quando `true`, cria/valida o job em `running` sem iniciar o runner em memória (para CLI `--detach`). */
+  detached?: boolean | undefined;
 }
 
 /** Contrato interno compartilhado por CLI, MCP e REST (docs/07 §1). */
@@ -162,7 +164,9 @@ export class CleanroomJobService implements JobService {
     }
 
     this.store.transition(jobId, "running", { manifest: result.manifest });
-    this.launch(jobId, options);
+    if (!options?.detached) {
+      this.launch(jobId, options);
+    }
     return { jobId };
   }
 

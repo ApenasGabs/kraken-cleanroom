@@ -3,6 +3,15 @@ import type { PhaseId } from "@cleanroom/core";
 export const ANALYZERS_PHASE_ID: PhaseId = "analyze";
 
 export {
+  isAnalyzePhaseEnabled,
+  runAnalyzePhase,
+  createAnalyzePhase,
+  analyzePhase,
+  type AnalyzePhaseCheckpoint,
+  type AnalyzePhaseOptions,
+} from "./analyze-phase.js";
+
+export {
   DEFAULT_DOC_PATHS,
   decodeHtmlEntities,
   extractMainContent,
