@@ -108,7 +108,7 @@ flowchart LR
 - Renderer de `templates/report-template.md` a partir dos dados; mermaid ER/estado/sequência; assets copiados; checagens de qualidade de `05` §7.
 - **Aceite:** golden test do `report.md`; checagem anti-cópia passa; mermaid parseável.
 
-### [ ] F1-14 CLI `run/status/report/evidence/list/cancel/resume` (M) - Dep: F1-02, F1-13
+### [x] F1-14 CLI `run/status/report/evidence/list/cancel/resume` (M) - Dep: F1-02, F1-13
 - Conforme `07` §3, com códigos de saída.
 - **Aceite:** `cleanroom run examples/demo-app.cleanroom.yaml` completa contra demo-app local com fake LLM (`CLEANROOM_LLM_PROVIDER=fake`).
 

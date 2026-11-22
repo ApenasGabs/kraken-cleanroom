@@ -3,6 +3,11 @@ import type { PhaseId } from "@cleanroom/core";
 export const SYNTHESIZER_PHASE_ID: PhaseId = "synthesize";
 
 export {
+  registerSynthesizerFakeHandlers,
+  createSynthesizerFakeLlmClient,
+} from "./fake-llm.js";
+
+export {
   RawModuleSchema,
   ClusterModulesOutputSchema,
   RawFindingSchema,
