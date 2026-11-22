@@ -80,6 +80,27 @@ export function buildSynthesizerSystemPrompt(
     .replace("{{JSON_SCHEMA}}", jsonSchema);
 }
 
+/**
+ * Monta o prompt de sistema para a etapa narrativa curta da Fase 7 (`report`), mantendo as
+ * regras estritas de clean room e rastreabilidade (`docs/04` Fase 7, `docs/05` §5-§6).
+ */
+export function buildReportNarrativeSystemPrompt(
+  manifest: Manifest,
+  schema: ZodTypeAny,
+  templateOverride?: string | undefined,
+): string {
+  const basePrompt = buildSynthesizerSystemPrompt(manifest, schema, templateOverride);
+  return [
+    basePrompt,
+    "",
+    "## 6. Instruções Específicas da Fase 7 (Narrativa do Relatório)",
+    "- Escreva apenas trechos narrativos curtos, objetivos e parafraseados a partir dos dados estruturados fornecidos.",
+    "- NUNCA copie trechos literais longos (>= 120 caracteres) de documentação, DOM ou strings de bundle.",
+    "- Em `executiveNarrative`, produza um resumo executivo conciso (3 a 5 linhas) explicando o que o produto faz, principais achados e cobertura.",
+    "- Em `permissionsMatrixMarkdown`, gere uma tabela Markdown válida (`| Papel / Contexto | Permissões observadas | Restrições | Evidência |`).",
+  ].join("\n");
+}
+
 function compactValue(value: unknown, depth: number): unknown {
   if (value === null || value === undefined) {
     return value;

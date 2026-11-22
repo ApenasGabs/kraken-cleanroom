@@ -18,12 +18,19 @@ export {
   RawFlowStepSchema,
   RawFlowSchema,
   InferBehaviorOutputSchema,
+  ReportNarrativeHighlightSchema,
+  ReportNarrativePersonaSchema,
+  ReportNarrativeModuleFeatureSchema,
+  ReportNarrativeModuleSummarySchema,
+  ReportNarrativeApiPurposeSchema,
+  ReportNarrativeOutputSchema,
   zodToJsonSchema,
   type ClusterModulesOutput,
   type ExtractFindingsOutput,
   type ConsolidateRulesOutput,
   type InferDomainOutput,
   type InferBehaviorOutput,
+  type ReportNarrativeOutput,
 } from "./schemas.js";
 
 export {
@@ -32,6 +39,7 @@ export {
   loadSystemPromptTemplate,
   formatManifestContext,
   buildSynthesizerSystemPrompt,
+  buildReportNarrativeSystemPrompt,
   serializeEvidenceForPrompt,
   estimateTokens,
   paginateEvidenceBatches,
@@ -59,3 +67,43 @@ export {
   type SynthesizerStats,
   type SynthesizerResult,
 } from "./pipeline.js";
+
+export {
+  sanitizeMermaidIdentifier,
+  sanitizeMermaidLabel,
+  generateErMermaid,
+  generateStateMachineMermaid,
+  generateFlowSequenceMermaid,
+  extractMermaidBlocks,
+  validateMermaidSyntax,
+  validateMarkdownMermaidBlocks,
+  type MermaidValidationResult,
+  type MarkdownMermaidCheckResult,
+} from "./report-mermaid.js";
+
+export {
+  resolveReportTemplatePath,
+  loadReportTemplate,
+  filterReportMarkdownSections,
+  renderReportTemplate,
+} from "./report-renderer.js";
+
+export {
+  DEFAULT_ANTI_COPY_MIN_CHARS,
+  ANTI_COPY_EVIDENCE_KINDS,
+  collectAntiCopyCorpus,
+  findLiteralCopyViolations,
+  extractReferencedAssetFilenames,
+  verifyReportQuality,
+  type AntiCopyCorpusEntry,
+  type VerifyReportQualityInput,
+} from "./report-quality.js";
+
+export {
+  runReportPhase,
+  createReportPhase,
+  reportPhase,
+  type ReportOptions,
+  type ReportStats,
+  type ReportPhaseResult,
+} from "./report.js";

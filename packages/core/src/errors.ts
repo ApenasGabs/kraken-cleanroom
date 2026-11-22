@@ -13,6 +13,7 @@ export const CLEANROOM_ERROR_CODES = [
   "EVIDENCE_NOT_FOUND",
   "HANDOFF_NOT_FOUND",
   "UNAUTHORIZED",
+  "REPORT_QUALITY_FAILED",
 ] as const;
 
 export type CleanroomErrorCode = (typeof CLEANROOM_ERROR_CODES)[number];
@@ -32,6 +33,7 @@ const DEFAULT_STATUS_BY_CODE: Record<CleanroomErrorCode, number> = {
   EVIDENCE_NOT_FOUND: 404,
   HANDOFF_NOT_FOUND: 404,
   UNAUTHORIZED: 401,
+  REPORT_QUALITY_FAILED: 422,
 };
 
 export interface CleanroomErrorOptions {
@@ -310,6 +312,32 @@ export class HandoffNotFoundError extends CleanroomError {
 export class UnauthorizedError extends CleanroomError {
   constructor(message: string, options?: CleanroomErrorOptions) {
     super("UNAUTHORIZED", message, options);
+  }
+}
+
+export interface ReportQualityIssueDetail {
+  kind: "rule_without_evidence" | "anti_copy_violation" | "missing_asset" | "invalid_mermaid";
+  message: string;
+  ruleId?: string | undefined;
+  evidenceId?: string | undefined;
+  assetPath?: string | undefined;
+  diagramKind?: string | undefined;
+}
+
+export class ReportQualityError extends CleanroomError {
+  readonly issues: readonly ReportQualityIssueDetail[];
+
+  constructor(
+    message: string,
+    options?: CleanroomErrorOptions & { issues?: readonly ReportQualityIssueDetail[] | undefined },
+  ) {
+    const issues = options?.issues ?? [];
+    super("REPORT_QUALITY_FAILED", message, {
+      statusCode: options?.statusCode ?? 422,
+      details: options?.details ?? (issues.length > 0 ? { issues } : undefined),
+      cause: options?.cause,
+    });
+    this.issues = issues;
   }
 }
 

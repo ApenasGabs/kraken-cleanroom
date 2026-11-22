@@ -282,14 +282,28 @@ export class CleanroomJobService implements JobService {
 
   async getReport(jobId: string, format: "markdown" | "json"): Promise<string> {
     this.store.getJobOrThrow(jobId);
-    const file = format === "markdown" ? "report.md" : "report.json";
-    const path = join(this.store.resolveJobDir(jobId), "report", file);
-    if (!existsSync(path)) {
-      throw new JobConflictError(`Relatório (${format}) ainda não foi gerado para ${jobId}.`, {
-        details: { jobId, format },
-      });
+    const reportDir = join(this.store.resolveJobDir(jobId), "report");
+    if (format === "markdown") {
+      const mdPath = join(reportDir, "report.md");
+      if (!existsSync(mdPath)) {
+        throw new JobConflictError(`Relatório (${format}) ainda não foi gerado para ${jobId}.`, {
+          details: { jobId, format },
+        });
+      }
+      return readFileSync(mdPath, "utf8");
     }
-    return readFileSync(path, "utf8");
+
+    const indexPath = join(reportDir, "index.json");
+    if (existsSync(indexPath)) {
+      return readFileSync(indexPath, "utf8");
+    }
+    const legacyJsonPath = join(reportDir, "report.json");
+    if (existsSync(legacyJsonPath)) {
+      return readFileSync(legacyJsonPath, "utf8");
+    }
+    throw new JobConflictError(`Relatório (${format}) ainda não foi gerado para ${jobId}.`, {
+      details: { jobId, format },
+    });
   }
 
   async listEvidence(

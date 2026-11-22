@@ -236,6 +236,188 @@ export interface FindingsDocument {
   stats: SynthesisStats;
 }
 
+// ---------------------------------------------------------------------------
+// Report contracts (docs/04 Fase 7, docs/05 §6-§7, docs/templates/report-template.md)
+// ---------------------------------------------------------------------------
+
+export interface ReportSummaryHighlight {
+  text: string;
+  ruleIds: string[];
+}
+
+export interface ReportProductPersona {
+  name: string;
+  goal: string;
+}
+
+export interface ReportPricingPlan {
+  name: string;
+  price: string;
+  limits: string;
+  evidenceIds: string[];
+}
+
+export interface ReportModuleFeature {
+  name: string;
+  description: string;
+  confidence: Confidence;
+  evidenceIds: string[];
+}
+
+export interface ReportModuleSection {
+  name: string;
+  summary: string;
+  features: ReportModuleFeature[];
+  screenshot?: string;
+  evidenceIds: string[];
+}
+
+export interface ReportStateMachineEntry {
+  entity: string;
+  states: string[];
+  initialState?: string;
+  terminalStates?: string[];
+  transitions: StateMachineTransition[];
+  mermaid: string;
+  evidenceIds: string[];
+}
+
+export interface ReportFlowEntry {
+  name: string;
+  module: string;
+  description: string;
+  steps: FlowStep[];
+  mermaid: string;
+  evidenceIds: string[];
+}
+
+export interface ReportApiOperation {
+  method: string;
+  path: string;
+  purpose: string;
+  auth: string;
+  evidenceIds: string[];
+}
+
+export interface ReportValidationEntry {
+  form: string;
+  field: string;
+  rule: string;
+  messageSummary: string;
+  evidenceIds: string[];
+}
+
+export interface ReportIntegrationEntry {
+  name: string;
+  category: string;
+  signal: string;
+  evidenceIds: string[];
+}
+
+export type ReportGapKind = "hypothesis" | "contradiction" | "inconclusive" | "coverage";
+
+export interface ReportGapEntry {
+  kind: ReportGapKind;
+  text: string;
+  evidenceIds: string[];
+}
+
+export interface ReportCoverageSummary {
+  pagesVisited: number;
+  endpoints: number;
+  docSections: number;
+  limitsHit: string;
+}
+
+export interface ReportRuleStatsSummary {
+  total: number;
+  observed: number;
+  inferred: number;
+  hypothesis: number;
+}
+
+export type ReportQualityIssueKind =
+  | "rule_without_evidence"
+  | "anti_copy_violation"
+  | "missing_asset"
+  | "invalid_mermaid";
+
+export interface ReportQualityIssue {
+  kind: ReportQualityIssueKind;
+  message: string;
+  ruleId?: string;
+  evidenceId?: string;
+  assetPath?: string;
+  diagramKind?: string;
+}
+
+export interface ReportQualityCheckResult {
+  ok: boolean;
+  issues: ReportQualityIssue[];
+  checkedRules: number;
+  checkedBlobs: number;
+  checkedAssets: number;
+  checkedMermaidBlocks: number;
+}
+
+export interface ReportIndexDocument {
+  version: 1;
+  job: {
+    id: string;
+    name: string;
+    finishedAt: string;
+    durationMin: number;
+    llmTokensIn: number;
+    llmTokensOut: number;
+    phases: string[];
+  };
+  target: {
+    url: string;
+    type: string;
+  };
+  manifest: {
+    ownership: string;
+    methodsEnabled: string[];
+  };
+  product: {
+    name: string;
+    valueProposition: string;
+    personas: ReportProductPersona[];
+  };
+  summary: {
+    narrative: string;
+    highlights: ReportSummaryHighlight[];
+  };
+  pricing: {
+    plans: ReportPricingPlan[];
+  };
+  coverage: ReportCoverageSummary;
+  stats: {
+    rules: ReportRuleStatsSummary;
+  };
+  modules: ReportModuleSection[];
+  domain: {
+    erMermaid: string;
+    entities: DomainEntity[];
+  };
+  rules: BusinessRule[];
+  stateMachines: ReportStateMachineEntry[];
+  flows: ReportFlowEntry[];
+  api: {
+    openApiPath: string;
+    operations: ReportApiOperation[];
+  };
+  permissions: {
+    matrixMarkdown: string;
+  };
+  validations: ReportValidationEntry[];
+  integrations: ReportIntegrationEntry[];
+  features: SynthesizedFeatureStub[];
+  gaps: ReportGapEntry[];
+  assets: string[];
+  quality: ReportQualityCheckResult;
+}
+
 export interface Page<T> {
   items: T[];
   nextCursor?: string;
