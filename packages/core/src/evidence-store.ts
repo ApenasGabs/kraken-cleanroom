@@ -4,7 +4,16 @@ import { dirname, posix, resolve, sep } from "node:path";
 import type { SqliteDatabase } from "./db.js";
 import { EvidenceNotFoundError } from "./errors.js";
 import { createEvidenceId } from "./ids.js";
-import type { Evidence, EvidenceKind, Page, PhaseId } from "./types/index.js";
+import type {
+  BusinessRule,
+  Confidence,
+  Evidence,
+  EvidenceKind,
+  Finding,
+  FindingCategory,
+  Page,
+  PhaseId,
+} from "./types/index.js";
 
 const MAX_SUMMARY_LENGTH = 300;
 const DEFAULT_PAGE_LIMIT = 50;
@@ -94,6 +103,61 @@ interface EvidenceRow {
 interface DecodedCursor {
   r: number;
   id: string;
+}
+
+interface FindingRow {
+  id: string;
+  job_id: string;
+  module: string;
+  category: string;
+  statement: string;
+  confidence: string;
+  fingerprint: string;
+  evidence_ids_json: string;
+}
+
+const CONFIDENCE_RANK: Record<Confidence, number> = {
+  hypothesis: 1,
+  inferred: 2,
+  observed: 3,
+};
+
+function mergeUniqueStrings(primary: readonly string[], secondary: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const item of [...primary, ...secondary]) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
+function higherConfidence(a: Confidence, b: Confidence): Confidence {
+  return CONFIDENCE_RANK[a] >= CONFIDENCE_RANK[b] ? a : b;
+}
+
+function mapRowToFinding(row: FindingRow): Finding {
+  let evidenceIds: string[] = [];
+  try {
+    const raw: unknown = JSON.parse(row.evidence_ids_json);
+    if (Array.isArray(raw)) {
+      evidenceIds = raw.filter((item): item is string => typeof item === "string");
+    }
+  } catch {
+    evidenceIds = [];
+  }
+  return {
+    id: row.id,
+    jobId: row.job_id,
+    module: row.module,
+    category: row.category as FindingCategory,
+    statement: row.statement,
+    confidence: row.confidence as Confidence,
+    evidenceIds,
+    fingerprint: row.fingerprint,
+  };
 }
 
 function sortCanonicalValue(value: unknown): unknown {
@@ -574,6 +638,183 @@ export class EvidenceStore {
       .get(...params) as { total: number } | undefined;
 
     return row?.total ?? 0;
+  }
+
+  has(jobId: string, evidenceId: string): boolean {
+    const row = this.db
+      .prepare("SELECT 1 FROM evidence WHERE job_id = ? AND id = ? LIMIT 1")
+      .get(jobId, evidenceId);
+    return row !== undefined;
+  }
+
+  /** Retorna o subconjunto de `evidenceIds` que realmente existe na tabela `evidence` do job. */
+  filterExistingIds(jobId: string, evidenceIds: readonly string[]): Set<string> {
+    const uniqueIds = [...new Set(evidenceIds.filter((id) => id.trim().length > 0))];
+    const existing = new Set<string>();
+    const chunkSize = 400;
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => "?").join(", ");
+      const rows = this.db
+        .prepare(`SELECT id FROM evidence WHERE job_id = ? AND id IN (${placeholders})`)
+        .all(jobId, ...chunk) as { id: string }[];
+      for (const row of rows) {
+        existing.add(row.id);
+      }
+    }
+    return existing;
+  }
+
+  /** Lista todas as evidências do job iterando internamente por cursor. */
+  listAll(
+    jobId: string,
+    filter?: Omit<ListEvidenceFilter, "limit" | "cursor"> | undefined,
+  ): Evidence[] {
+    const all: Evidence[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = this.list(jobId, {
+        ...(filter ?? {}),
+        limit: MAX_PAGE_LIMIT,
+        ...(cursor !== undefined ? { cursor } : {}),
+      });
+      all.push(...page.items);
+      cursor = page.nextCursor;
+    } while (cursor !== undefined);
+    return all;
+  }
+
+  putFinding(finding: Finding): { finding: Finding; deduplicated: boolean } {
+    const jobId = assertSafeSegment(finding.jobId, "jobId");
+    const tx = this.db.transaction((): { finding: Finding; deduplicated: boolean } => {
+      this.ensureJobRecord(jobId, new Date().toISOString());
+      const existing = this.db
+        .prepare(
+          `SELECT id, job_id, module, category, statement, confidence, fingerprint, evidence_ids_json
+           FROM findings
+           WHERE job_id = ? AND fingerprint = ?`,
+        )
+        .get(jobId, finding.fingerprint) as FindingRow | undefined;
+
+      if (existing !== undefined) {
+        const mappedExisting = mapRowToFinding(existing);
+        const mergedEvidenceIds = mergeUniqueStrings(
+          mappedExisting.evidenceIds,
+          finding.evidenceIds,
+        );
+        const mergedConfidence = higherConfidence(mappedExisting.confidence, finding.confidence);
+        this.db
+          .prepare("UPDATE findings SET confidence = ?, evidence_ids_json = ? WHERE id = ?")
+          .run(mergedConfidence, JSON.stringify(mergedEvidenceIds), mappedExisting.id);
+        return {
+          finding: {
+            ...mappedExisting,
+            confidence: mergedConfidence,
+            evidenceIds: mergedEvidenceIds,
+          },
+          deduplicated: true,
+        };
+      }
+
+      const uniqueEvidenceIds = mergeUniqueStrings(finding.evidenceIds, []);
+      this.db
+        .prepare(
+          `INSERT INTO findings (
+            id, job_id, module, category, statement, confidence, fingerprint, evidence_ids_json
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          finding.id,
+          jobId,
+          finding.module,
+          finding.category,
+          finding.statement,
+          finding.confidence,
+          finding.fingerprint,
+          JSON.stringify(uniqueEvidenceIds),
+        );
+
+      return {
+        finding: { ...finding, jobId, evidenceIds: uniqueEvidenceIds },
+        deduplicated: false,
+      };
+    });
+
+    return tx();
+  }
+
+  saveFindings(jobId: string, findings: readonly Finding[]): Finding[] {
+    const safeJobId = assertSafeSegment(jobId, "jobId");
+    const tx = this.db.transaction((): Finding[] => {
+      const saved: Finding[] = [];
+      for (const item of findings) {
+        const result = this.putFinding({ ...item, jobId: safeJobId });
+        saved.push(result.finding);
+      }
+      return saved;
+    });
+    return tx();
+  }
+
+  listFindings(
+    jobId: string,
+    filter?: {
+      module?: string | undefined;
+      category?: FindingCategory | undefined;
+      confidence?: Confidence | undefined;
+    },
+  ): Finding[] {
+    const conditions: string[] = ["job_id = ?"];
+    const params: unknown[] = [jobId];
+    if (filter?.module !== undefined) {
+      conditions.push("module = ?");
+      params.push(filter.module);
+    }
+    if (filter?.category !== undefined) {
+      conditions.push("category = ?");
+      params.push(filter.category);
+    }
+    if (filter?.confidence !== undefined) {
+      conditions.push("confidence = ?");
+      params.push(filter.confidence);
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT id, job_id, module, category, statement, confidence, fingerprint, evidence_ids_json
+         FROM findings
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY rowid ASC`,
+      )
+      .all(...params) as FindingRow[];
+    return rows.map(mapRowToFinding);
+  }
+
+  saveRules(jobId: string, rules: readonly BusinessRule[]): void {
+    const safeJobId = assertSafeSegment(jobId, "jobId");
+    const tx = this.db.transaction(() => {
+      this.ensureJobRecord(safeJobId, new Date().toISOString());
+      this.db.prepare("DELETE FROM rules WHERE job_id = ?").run(safeJobId);
+      const insert = this.db.prepare(
+        "INSERT INTO rules (job_id, id, module, data_json) VALUES (?, ?, ?, ?)",
+      );
+      for (const rule of rules) {
+        insert.run(safeJobId, rule.id, rule.module, JSON.stringify(rule));
+      }
+    });
+    tx();
+  }
+
+  listRules(
+    jobId: string,
+    filter?: { module?: string | undefined; confidence?: Confidence | undefined },
+  ): BusinessRule[] {
+    const rows = this.db
+      .prepare("SELECT data_json FROM rules WHERE job_id = ? ORDER BY id ASC")
+      .all(jobId) as { data_json: string }[];
+    return rows
+      .map((row) => JSON.parse(row.data_json) as BusinessRule)
+      .filter((rule) => filter?.module === undefined || rule.module === filter.module)
+      .filter((rule) => filter?.confidence === undefined || rule.confidence === filter.confidence);
   }
 }
 
