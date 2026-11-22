@@ -492,4 +492,26 @@ describe("@cleanroom/cli — run, status, list, resume, cancel, report, evidence
     expect(cap.getStdout()).toContain("cr-minimal-1");
     expect(cap.getStdout()).toContain("Estado: completed");
   });
+
+  it("7. suporta cleanroom serve --mcp-stdio e recusa ausência de flag ou --http na Fase 1", async () => {
+    const missingFlag = createCapturedIo({ cwd: tempDir });
+    expect(await runCli(["serve"], missingFlag.io)).toBe(1);
+    expect(missingFlag.getStderr()).toContain("--mcp-stdio");
+
+    const httpFlag = createCapturedIo({ cwd: tempDir });
+    expect(await runCli(["serve", "--http"], httpFlag.io)).toBe(1);
+    expect(httpFlag.getStderr()).toContain("Fase 2");
+
+    let calledWithEnv: Record<string, string | undefined> | undefined;
+    const mcpCap = createCapturedIo({
+      cwd: tempDir,
+      env: { CLEANROOM_DATA_DIR: join(tempDir, "mcp-data"), CLEANROOM_LLM_PROVIDER: "fake" },
+      startMcpStdio: async (opts) => {
+        calledWithEnv = opts.env;
+      },
+    });
+    expect(await runCli(["serve", "--mcp-stdio"], mcpCap.io)).toBe(0);
+    expect(mcpCap.getStderr()).toBe("");
+    expect(calledWithEnv?.CLEANROOM_LLM_PROVIDER).toBe("fake");
+  });
 });
